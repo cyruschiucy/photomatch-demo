@@ -38,28 +38,7 @@
             background-color: rgba(0, 0, 0, 0.7);
             color: white;
             text-align: center;
-            padding: 0.5rem;
-            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
-        }
-        .notification {
-            position: fixed;
-            top: 20%;
-            left: 50%;
-            transform: translateX(-50%);
-            background-color: #ef4444;
-            color: white;
-            padding: 1rem 2rem;
-            border-radius: 0.5rem;
-            z-index: 50;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-        .pull-to-refresh {
-            position: fixed;
-            bottom: 1rem;
-            left: 50%;
-            transform: translateX(-50%);
-            background-color: rgba(255, 255, 255, 0.9);
-            color: #333;
+            padding: 0.5remFacilitator: none;
             padding: 0.5rem 1rem;
             border-radius: 0.5rem;
             font-size: 0.875rem;
@@ -99,11 +78,6 @@
                     <option value="bottom">Bottom</option>
                 </select>
             </div>
-        </div>
-
-        <!-- Refresh Button for 4 Photos Mode -->
-        <div id="refreshButtonContainer" class="mb-4 flex justify-center hidden">
-            <button id="refreshButton" class="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600" aria-label="Refresh all photos">Refresh</button>
         </div>
 
         <!-- Photo Display Area -->
@@ -161,8 +135,6 @@
         const photoContainer = document.getElementById('photoContainer');
         const navButtons = document.getElementById('navButtons');
         const skipButton = document.getElementById('skipButton');
-        const refreshButtonContainer = document.getElementById('refreshButtonContainer');
-        const refreshButton = document.getElementById('refreshButton');
         const pullToRefresh = document.getElementById('pullToRefresh');
         let currentImageIndex = 0;
         let timers = new Map();
@@ -257,6 +229,9 @@
             let activePhotoDiv = null;
             let activeId = null;
 
+            // Clear existing content
+            photoContainer.innerHTML = '';
+
             if (mode === 'four' && timers.size > 0) {
                 activeId = [...timers.keys()][0];
                 activePhotoDiv = photoContainer.querySelector(`[data-id="${activeId}"]`);
@@ -269,7 +244,6 @@
                 photoContainer.classList.remove('grid-cols-1');
                 photoContainer.classList.add('grid-cols-2', 'sm:grid-cols-2', 'lg:grid-cols-4');
                 navButtons.classList.add('hidden');
-                refreshButtonContainer.classList.remove('hidden');
 
                 const usedSrcs = activePhotoDiv ? [activePhotoDiv.querySelector('img').src] : [];
                 const availableImages = images.filter(img => !usedSrcs.includes(img.src));
@@ -287,13 +261,11 @@
                     photoDiv.querySelector('img').addEventListener('click', () => startCountdown(photoDiv, 'four'));
                     tempContainer.appendChild(photoDiv);
                 }
-                photoContainer.innerHTML = '';
                 photoContainer.append(...tempContainer.children);
             } else {
                 photoContainer.classList.remove('grid-cols-2', 'sm:grid-cols-2', 'lg:grid-cols-4');
                 photoContainer.classList.add('grid-cols-1');
                 navButtons.classList.remove('hidden');
-                refreshButtonContainer.classList.add('hidden');
                 const div = createPhotoElement(images[currentImageIndex], 0);
                 div.querySelector('img').addEventListener('click', () => startCountdown(div, 'one'));
                 photoContainer.appendChild(div);
@@ -335,10 +307,6 @@
                 .map((_, i) => i)
                 .filter(i => i !== currentImageIndex);
             currentImageIndex = availableIndices[Math.floor(Math.random() * availableIndices.length)];
-            updateDisplay();
-        });
-
-        refreshButton.addEventListener('click', () => {
             updateDisplay();
         });
 
