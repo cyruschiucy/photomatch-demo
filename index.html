@@ -20,8 +20,13 @@
             <label for="displayMode" class="text-lg font-medium mr-2">Select Display Mode:</label>
             <select id="displayMode" class="p-2 border rounded-lg">
                 <option value="four">4 Photos</option>
-                <option value="one">1 Photo</option>
+                <option value="one">2 Photos</option>
             </select>
+        </div>
+
+        <!-- Refresh Button for 4 Photos Mode -->
+        <div id="refreshButtonContainer" class="mb-4 flex justify-center hidden">
+            <button id="refreshButton" class="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600">Refresh</button>
         </div>
 
         <!-- Photo Display Area -->
@@ -29,10 +34,9 @@
             <!-- Photos will be dynamically inserted here -->
         </div>
 
-        <!-- Navigation Buttons for 1 Photo Mode -->
-        <div id="navButtons" class="mt-4 flex justify-center space-x-4 hidden">
-            <button id="prevButton" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">Previous</button>
-            <button id="nextButton" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">Next</button>
+        <!-- Navigation Button for 1 Photo Mode -->
+        <div id="navButtons" class="mt-4 flex justify-center hidden">
+            <button id="skipButton" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">Skip</button>
         </div>
     </div>
 
@@ -40,86 +44,156 @@
         const images = [
             {
                 src: 'https://i.imgur.com/GA4R6XL.jpeg',
-                desc: 'Serene mountain landscape with snow-capped peaks and a clear blue sky, perfect for hiking.'
+                desc: 'Snow-capped mountains under a clear blue sky, ideal for a serene hiking adventure.'
             },
             {
                 src: 'https://i.imgur.com/1VM7424.jpeg',
-                desc: 'Vibrant autumn forest with golden leaves falling gently, creating a picturesque and tranquil scene.'
+                desc: 'Golden autumn leaves fall in a vibrant forest, creating a peaceful and picturesque scene.'
             },
             {
                 src: 'https://i.imgur.com/caXLoP1.jpeg',
-                desc: 'Calm ocean waves lapping at a sandy beach, with seagulls soaring under a sunset sky.'
+                desc: 'Gentle ocean waves touch a sandy beach, with a sunset sky and soaring seagulls.'
             },
             {
                 src: 'https://i.imgur.com/vnotmmp.jpeg',
-                desc: 'Lush green valley with a winding river, surrounded by rolling hills under a cloudy sky.'
+                desc: 'Lush green valley with a winding river, framed by rolling hills and clouds.'
+            },
+            {
+                src: 'https://i.imgur.com/XagFamV.jpeg',
+                desc: 'Majestic waterfall flows down a rocky cliff, surrounded by misty, lush greenery.'
+            },
+            {
+                src: 'https://i.imgur.com/eeTq6gc.png',
+                desc: 'Starry desert night with cacti silhouetted against a glowing horizon, evoking tranquility.'
+            },
+            {
+                src: 'https://i.imgur.com/OH2NhWP.png',
+                desc: 'Colorful hot air balloons drift over a serene countryside with fields and villages.'
+            },
+            {
+                src: 'https://i.imgur.com/qpa4IMk.jpeg',
+                desc: 'Cozy alpine village in a snowy valley, glowing warmly under a twilight sky.'
             }
         ];
 
         const displayModeSelect = document.getElementById('displayMode');
         const photoContainer = document.getElementById('photoContainer');
         const navButtons = document.getElementById('navButtons');
-        const prevButton = document.getElementById('prevButton');
-        const nextButton = document.getElementById('nextButton');
+        const skipButton = document.getElementById('skipButton');
+        const refreshButtonContainer = document.getElementById('refreshButtonContainer');
+        const refreshButton = document.getElementById('refreshButton');
         let currentImageIndex = 0;
+        let timers = new Map(); // Track timers for each photo
+
+        // Function to get random items
+        function getRandomItems(array, n) {
+            const shuffled = [...array].sort(() => Math.random() - 0.5);
+            return shuffled.slice(0, n);
+        }
+
+        // Function to create a photo element
+        function createPhotoElement(image, index) {
+            const div = document.createElement('div');
+            div.className = 'aspect-9-16 w-full overflow-hidden rounded-lg relative';
+            div.dataset.index = index; // Store index for reference
+            const img = document.createElement('img');
+            img.src = image.src;
+            img.alt = 'Photo';
+            img.className = 'w-full h-full object-cover cursor-pointer';
+            const descDiv = document.createElement('div');
+            descDiv.className = 'absolute bottom-0 w-full bg-black bg-opacity-50 text-white text-sm p-2';
+            descDiv.textContent = image.desc;
+            const timerDiv = document.createElement('div');
+            timerDiv.className = 'absolute top-2 left-2 bg-black bg-opacity-70 text-white text-lg p-2 rounded hidden';
+            timerDiv.id = `timer-${index}`;
+            div.appendChild(img);
+            div.appendChild(descDiv);
+            div.appendChild(timerDiv);
+            return div;
+        }
+
+        // Function to start countdown timer
+        function startCountdown(photoDiv, mode) {
+            const index = photoDiv.dataset.index;
+            if (timers.has(index)) return; // Prevent multiple timers
+
+            const timerDiv = photoDiv.querySelector(`#timer-${index}`);
+            let timeLeft = 15;
+            timerDiv.textContent = timeLeft;
+            timerDiv.classList.remove('hidden');
+
+            const timer = setInterval(() => {
+                timeLeft--;
+                timerDiv.textContent = timeLeft;
+                if (timeLeft <= 0) {
+                    clearInterval(timer);
+                    timers.delete(index);
+                    timerDiv.classList.add('hidden');
+                    replacePhoto(photoDiv, mode);
+                }
+            }, 1000);
+
+            timers.set(index, timer);
+        }
+
+        // Function to replace photo with a random one
+        function replacePhoto(photoDiv, mode) {
+            const newImage = getRandomItems(images, 1)[0];
+            const index = photoDiv.dataset.index;
+            const img = photoDiv.querySelector('img');
+            const descDiv = photoDiv.querySelector('.bg-black.bg-opacity-50');
+            img.src = newImage.src;
+            descDiv.textContent = newImage.desc;
+            if (mode === 'one') {
+                currentImageIndex = images.findIndex(img => img.src === newImage.src);
+            }
+        }
 
         function updateDisplay() {
             const mode = displayModeSelect.value;
             photoContainer.innerHTML = ''; // Clear existing photos
+            timers.forEach(timer => clearInterval(timer));
+            timers.clear();
 
             if (mode === 'four') {
-                // Display all 4 photos in a grid
+                // Display 4 random photos
                 photoContainer.classList.remove('grid-cols-1');
                 photoContainer.classList.add('sm:grid-cols-2', 'lg:grid-cols-4');
                 navButtons.classList.add('hidden');
-                images.forEach(image => {
-                    const div = document.createElement('div');
-                    div.className = 'aspect-9-16 w-full overflow-hidden rounded-lg relative';
-                    const img = document.createElement('img');
-                    img.src = image.src;
-                    img.alt = 'Photo';
-                    img.className = 'w-full h-full object-cover';
-                    const descDiv = document.createElement('div');
-                    descDiv.className = 'absolute bottom-0 w-full bg-black bg-opacity-50 text-white text-sm p-2';
-                    descDiv.textContent = image.desc;
-                    div.appendChild(img);
-                    div.appendChild(descDiv);
-                    photoContainer.appendChild(div);
+                refreshButtonContainer.classList.remove('hidden');
+                const randomImages = getRandomItems(images, 4);
+                randomImages.forEach((image, i) => {
+                    const photoDiv = createPhotoElement(image, i);
+                    photoDiv.querySelector('img').addEventListener('click', () => startCountdown(photoDiv, 'four'));
+                    photoContainer.appendChild(photoDiv);
                 });
             } else {
-                // Display one photo with navigation
+                // Display one random photo
                 photoContainer.classList.remove('sm:grid-cols-2', 'lg:grid-cols-4');
                 photoContainer.classList.add('grid-cols-1');
                 navButtons.classList.remove('hidden');
-                const div = document.createElement('div');
-                div.className = 'aspect-9-16 w-full max-w-md mx-auto overflow-hidden rounded-lg relative';
-                const img = document.createElement('img');
-                img.src = images[currentImageIndex].src;
-                img.alt = 'Photo';
-                img.className = 'w-full h-full object-cover';
-                const descDiv = document.createElement('div');
-                descDiv.className = 'absolute bottom-0 w-full bg-black bg-opacity-50 text-white text-sm p-2';
-                descDiv.textContent = images[currentImageIndex].desc;
-                div.appendChild(img);
-                div.appendChild(descDiv);
+                refreshButtonContainer.classList.add('hidden');
+                const div = createPhotoElement(images[currentImageIndex], 0);
+                div.querySelector('img').addEventListener('click', () => startCountdown(div, 'one'));
                 photoContainer.appendChild(div);
             }
         }
 
-        // Navigation button handlers
-        prevButton.addEventListener('click', () => {
-            currentImageIndex = (currentImageIndex - 1 + images.length) % images.length;
+        // Skip button handler for random photo in 1 Photo mode
+        skipButton.addEventListener('click', () => {
+            const newIndex = Math.floor(Math.random() * images.length);
+            currentImageIndex = newIndex;
             updateDisplay();
         });
 
-        nextButton.addEventListener('click', () => {
-            currentImageIndex = (currentImageIndex + 1) % images.length;
+        // Refresh button handler for randomizing 4 Photos mode
+        refreshButton.addEventListener('click', () => {
             updateDisplay();
         });
 
         // Update display when mode changes
         displayModeSelect.addEventListener('change', () => {
-            currentImageIndex = 0; // Reset to first image when switching modes
+            currentImageIndex = Math.floor(Math.random() * images.length); // Random initial image
             updateDisplay();
         });
 
