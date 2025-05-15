@@ -53,12 +53,30 @@
             z-index: 50;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
+        .pull-to-refresh {
+            position: fixed;
+            bottom: 1rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(255, 255, 255, 0.9);
+            color: #333;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            z-index: 40;
+            display: none;
+        }
         @media (max-width: 640px) {
             .timer-circle {
                 font-size: 1.5rem;
             }
             .desc-middle, .desc-bottom {
                 font-size: 0.75rem;
+            }
+            .pull-to-refresh {
+                font-size: 0.75rem;
+                padding: 0.4rem 0.8rem;
             }
         }
     </style>
@@ -97,6 +115,9 @@
         <div id="navButtons" class="mt-4 flex justify-center hidden">
             <button id="skipButton" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600" aria-label="Skip to next photo">Skip</button>
         </div>
+
+        <!-- Pull to Refresh Indicator -->
+        <div id="pullToRefresh" class="pull-to-refresh">Pull to refresh</div>
     </div>
 
     <script>
@@ -142,6 +163,7 @@
         const skipButton = document.getElementById('skipButton');
         const refreshButtonContainer = document.getElementById('refreshButtonContainer');
         const refreshButton = document.getElementById('refreshButton');
+        const pullToRefresh = document.getElementById('pullToRefresh');
         let currentImageIndex = 0;
         let timers = new Map();
         let scrollTimeout = null;
@@ -279,7 +301,10 @@
         }
 
         window.addEventListener('scroll', () => {
-            if (displayModeSelect.value !== 'four' || timers.size > 0) return;
+            if (displayModeSelect.value !== 'four' || timers.size > 0) {
+                pullToRefresh.style.display = 'none';
+                return;
+            }
 
             const currentScrollY = window.scrollY;
             const isScrollingUp = currentScrollY < lastScrollY;
@@ -287,14 +312,19 @@
 
             if (isBottomVisible) {
                 bottomReached = true;
+            } else if (!isScrollingUp) {
+                bottomReached = false;
+                pullToRefresh.style.display = 'none';
             }
 
             if (bottomReached && isScrollingUp) {
+                pullToRefresh.style.display = 'block';
                 if (scrollTimeout) clearTimeout(scrollTimeout);
                 scrollTimeout = setTimeout(() => {
                     updateDisplay();
-                    bottomReached = false; // Reset after refresh
-                }, 1000);
+                    bottomReached = false;
+                    pullToRefresh.style.display = 'none';
+                }, 250);
             }
 
             lastScrollY = currentScrollY;
@@ -314,6 +344,7 @@
 
         displayModeSelect.addEventListener('change', () => {
             currentImageIndex = Math.floor(Math.random() * images.length);
+            pullToRefresh.style.display = 'none';
             updateDisplay();
         });
 
