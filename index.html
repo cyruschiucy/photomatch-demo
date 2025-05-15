@@ -1,245 +1,130 @@
-<script type="text/javascript">
-        var gk_isXlsx = false;
-        var gk_xlsxFileLookup = {};
-        var gk_fileData = {};
-        function filledCell(cell) {
-          return cell !== '' && cell != null;
-        }
-        function loadFileData(filename) {
-        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
-            try {
-                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
-                var firstSheetName = workbook.SheetNames[0];
-                var worksheet = workbook.Sheets[firstSheetName];
-
-                // Convert sheet to JSON to filter blank rows
-                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
-                // Filter out blank rows (rows where all cells are empty, null, or undefined)
-                var filteredData = jsonData.filter(row => row.some(filledCell));
-
-                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
-                var headerRowIndex = filteredData.findIndex((row, index) =>
-                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
-                );
-                // Fallback
-                if (headerRowIndex === -1 || headerRowIndex > 25) {
-                  headerRowIndex = 0;
-                }
-
-                // Convert filtered JSON back to CSV
-                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
-                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
-                return csv;
-            } catch (e) {
-                console.error(e);
-                return "";
-            }
-        }
-        return gk_fileData[filename] || "";
-        }
-        </script><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PhotoMatch Demo</title>
-  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.20.15/babel.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/react-router-dom@6.26.2/dist/umd/react-router-dom.min.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photo Display App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .aspect-9-16 {
+            aspect-ratio: 9 / 16;
+        }
+    </style>
 </head>
-<body>
-  <div id="root"></div>
-  <script type="text/babel">
-    const { useState, useEffect } = React;
-    const { BrowserRouter, Routes, Route, Link, useNavigate } = ReactRouterDOM;
-
-    // Mock data for 10 users
-    const mockProfiles = [
-      { id: 'user1', photo: 'https://i.imgur.com/GA4R6XL.jpeg', description: 'Love hiking and coffee!' },
-      { id: 'user2', photo: 'https://plus.unsplash.com/premium_photo-1667239522367-b6d47ef35ef2?q=80&w=3023&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D', description: 'Avid reader and foodie.' },
-      { id: 'user3', photo: 'https://source.unsplash.com/random/300x300?person3', description: 'Travel enthusiast.' },
-      { id: 'user4', photo: 'https://source.unsplash.com/random/300x300?person4', description: 'Music is my life!' },
-      { id: 'user5', photo: 'https://source.unsplash.com/random/300x300?person5', description: 'Dog lover and gamer.' },
-      { id: 'user6', photo: 'https://source.unsplash.com/random/300x300?person6', description: 'Into yoga and mindfulness.' },
-      { id: 'user7', photo: 'https://source.unsplash.com/random/300x300?person7', description: 'Aspiring chef.' },
-      { id: 'user8', photo: 'https://source.unsplash.com/random/300x300?person8', description: 'Beach vibes only.' },
-      { id: 'user9', photo: 'https://source.unsplash.com/random/300x300?person9', description: 'Art and creativity.' },
-      { id: 'user10', photo: 'https://source.unsplash.com/random/300x300?person10', description: 'Adventure seeker.' },
-    ];
-
-    // Page A: Photo display with toggle and countdown
-    function PageA() {
-      const [displayMode, setDisplayMode] = useState('single'); // 'single' or 'grid'
-      const [selectedProfile, setSelectedProfile] = useState(null);
-      const [countdown, setCountdown] = useState(null);
-      const navigate = useNavigate();
-
-      const handlePhotoClick = (profile) => {
-        setSelectedProfile(profile);
-        setCountdown(15);
-      };
-
-      useEffect(() => {
-        if (countdown !== null && countdown > 0) {
-          const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
-          return () => clearTimeout(timer);
-        } else if (countdown === 0) {
-          setSelectedProfile(null);
-          setCountdown(null);
-        }
-      }, [countdown]);
-
-      const getRandomProfiles = (count) => {
-        const shuffled = [...mockProfiles].sort(() => Math.random() - 0.5);
-        return shuffled.slice(0, count);
-      };
-
-      return (
-        <div className="min-h-screen bg-gray-100 p-4 max-w-md mx-auto">
-          <div className="flex justify-between items-center mb-4">
-            <h1 className="text-2xl font-bold">PhotoMatch</h1>
-            <Link to="/page-b" className="text-blue-500 underline">Go to Page B</Link>
-          </div>
-          <div className="mb-4">
-            <button
-              onClick={() => setDisplayMode(displayMode === 'single' ? 'grid' : 'single')}
-              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 w-full"
-            >
-              {displayMode === 'single' ? 'Switch to Grid (4 Photos)' : 'Switch to Single Photo'}
-            </button>
-          </div>
-          {displayMode === 'single' ? (
-            <div className="bg-white p-4 rounded-lg shadow-md relative">
-              {mockProfiles.map((profile) => (
-                <div key={profile.id} className={selectedProfile?.id === profile.id ? '' : 'hidden'}>
-                  <img
-                    src={profile.photo}
-                    alt="Profile"
-                    className="w-full h-64 object-cover rounded mb-4 cursor-pointer"
-                    onClick={() => handlePhotoClick(profile)}
-                  />
-                  {selectedProfile?.id === profile.id && countdown !== null && (
-                    <div className="absolute top-0 left-0 w-full h-full bg-black bg-opacity-50 flex items-center justify-center">
-                      <span className="text-white text-4xl">{countdown}</span>
-                    </div>
-                  )}
-                  <p className="text-lg">{profile.description}</p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-4">
-              {getRandomProfiles(4).map((profile) => (
-                <div key={profile.id} className="bg-white p-4 rounded-lg shadow-md relative">
-                  <img
-                    src={profile.photo}
-                    alt="Profile"
-                    className="w-full h-32 object-cover rounded mb-2 cursor-pointer"
-                    onClick={() => handlePhotoClick(profile)}
-                  />
-                  {selectedProfile?.id === profile.id && countdown !== null && (
-                    <div className="absolute top-0 left-0 w-full h-full bg-black bg-opacity-50 flex items-center justify-center">
-                      <span className="text-white text-2xl">{countdown}</span>
-                    </div>
-                  )}
-                  <p className="text-sm truncate">{profile.description}</p>
-                </div>
-              ))}
-            </div>
-          )}
+<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center">
+    <div class="container mx-auto p-4">
+        <h1 class="text-3xl font-bold text-center mb-6">Photo Display App</h1>
+        
+        <!-- Display Mode Selection -->
+        <div class="mb-6 text-center">
+            <label for="displayMode" class="text-lg font-medium mr-2">Select Display Mode:</label>
+            <select id="displayMode" class="p-2 border rounded-lg">
+                <option value="four">4 Photos</option>
+                <option value="one">1 Photo</option>
+            </select>
         </div>
-      );
-    }
 
-    // Page B: Invitation popup
-    function PageB() {
-      const [invitation, setInvitation] = useState(null);
-
-      // Simulate receiving an invitation when a photo is clicked on Page A
-      useEffect(() => {
-        const handleInvitation = (profile) => {
-          setInvitation(profile);
-        };
-
-        // Mock event listener for demo (in real app, this would come from Socket.IO)
-        window.addEventListener('photoClicked', (e) => handleInvitation(e.detail));
-        return () => window.removeEventListener('photoClicked', handleInvitation);
-      }, []);
-
-      const acceptInvitation = () => {
-        alert('Match accepted! (Demo: Chat would start here)');
-        setInvitation(null);
-      };
-
-      const declineInvitation = () => {
-        setInvitation(null);
-      };
-
-      return (
-        <div className="min-h-screen bg-gray-100 p-4 max-w-md mx-auto">
-          <div className="flex justify-between items-center mb-4">
-            <h1 className="text-2xl font-bold">Invitations</h1>
-            <Link to="/" className="text-blue-500 underline">Go to Page A</Link>
-          </div>
-          <p className="text-center text-gray-600">Click a photo on Page A to see an invitation here.</p>
-          {invitation && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-              <div className="bg-white p-6 rounded-lg shadow-md max-w-sm w-full">
-                <h2 className="text-xl font-semibold mb-4">Match Invitation</h2>
-                <img
-                  src={invitation.photo}
-                  alt="Inviter"
-                  className="w-full h-48 object-cover rounded mb-4"
-                />
-                <p className="mb-4">{invitation.description}</p>
-                <div className="flex space-x-4">
-                  <button
-                    onClick={acceptInvitation}
-                    className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 flex-1"
-                  >
-                    Accept
-                  </button>
-                  <button
-                    onClick={declineInvitation}
-                    className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 flex-1"
-                  >
-                    Decline
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+        <!-- Photo Display Area -->
+        <div id="photoContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Photos will be dynamically inserted here -->
         </div>
-      );
-    }
 
-    // Main App
-    function App() {
-      return (
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<PageA />} />
-            <Route path="/page-b" element={<PageB />} />
-          </Routes>
-        </BrowserRouter>
-      );
-    }
+        <!-- Navigation Buttons for 1 Photo Mode -->
+        <div id="navButtons" class="mt-4 flex justify-center space-x-4 hidden">
+            <button id="prevButton" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">Previous</button>
+            <button id="nextButton" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">Next</button>
+        </div>
+    </div>
 
-    // Simulate photo click event for demo
-    document.addEventListener('click', (e) => {
-      if (e.target.tagName === 'IMG' && e.target.closest('.cursor-pointer')) {
-        const profileId = e.target.closest('[data-profile-id]')?.dataset.profileId;
-        const profile = mockProfiles.find((p) => p.id === profileId);
-        if (profile) {
-          window.dispatchEvent(new CustomEvent('photoClicked', { detail: profile }));
+    <script>
+        const images = [
+            {
+                src: 'https://i.imgur.com/GA4R6XL.jpeg',
+                desc: 'Serene mountain landscape with snow-capped peaks and a clear blue sky, perfect for hiking.'
+            },
+            {
+                src: 'https://i.imgur.com/1VM7424.jpeg',
+                desc: 'Vibrant autumn forest with golden leaves falling gently, creating a picturesque and tranquil scene.'
+            },
+            {
+                src: 'https://i.imgur.com/caXLoP1.jpeg',
+                desc: 'Calm ocean waves lapping at a sandy beach, with seagulls soaring under a sunset sky.'
+            },
+            {
+                src: 'https://i.imgur.com/vnotmmp.jpeg',
+                desc: 'Lush green valley with a winding river, surrounded by rolling hills under a cloudy sky.'
+            }
+        ];
+
+        const displayModeSelect = document.getElementById('displayMode');
+        const photoContainer = document.getElementById('photoContainer');
+        const navButtons = document.getElementById('navButtons');
+        const prevButton = document.getElementById('prevButton');
+        const nextButton = document.getElementById('nextButton');
+        let currentImageIndex = 0;
+
+        function updateDisplay() {
+            const mode = displayModeSelect.value;
+            photoContainer.innerHTML = ''; // Clear existing photos
+
+            if (mode === 'four') {
+                // Display all 4 photos in a grid
+                photoContainer.classList.remove('grid-cols-1');
+                photoContainer.classList.add('sm:grid-cols-2', 'lg:grid-cols-4');
+                navButtons.classList.add('hidden');
+                images.forEach(image => {
+                    const div = document.createElement('div');
+                    div.className = 'aspect-9-16 w-full overflow-hidden rounded-lg relative';
+                    const img = document.createElement('img');
+                    img.src = image.src;
+                    img.alt = 'Photo';
+                    img.className = 'w-full h-full object-cover';
+                    const descDiv = document.createElement('div');
+                    descDiv.className = 'absolute bottom-0 w-full bg-black bg-opacity-50 text-white text-sm p-2';
+                    descDiv.textContent = image.desc;
+                    div.appendChild(img);
+                    div.appendChild(descDiv);
+                    photoContainer.appendChild(div);
+                });
+            } else {
+                // Display one photo with navigation
+                photoContainer.classList.remove('sm:grid-cols-2', 'lg:grid-cols-4');
+                photoContainer.classList.add('grid-cols-1');
+                navButtons.classList.remove('hidden');
+                const div = document.createElement('div');
+                div.className = 'aspect-9-16 w-full max-w-md mx-auto overflow-hidden rounded-lg relative';
+                const img = document.createElement('img');
+                img.src = images[currentImageIndex].src;
+                img.alt = 'Photo';
+                img.className = 'w-full h-full object-cover';
+                const descDiv = document.createElement('div');
+                descDiv.className = 'absolute bottom-0 w-full bg-black bg-opacity-50 text-white text-sm p-2';
+                descDiv.textContent = images[currentImageIndex].desc;
+                div.appendChild(img);
+                div.appendChild(descDiv);
+                photoContainer.appendChild(div);
+            }
         }
-      }
-    });
 
-    // Render
-    ReactDOM.render(<App />, document.getElementById('root'));
-  </script>
+        // Navigation button handlers
+        prevButton.addEventListener('click', () => {
+            currentImageIndex = (currentImageIndex - 1 + images.length) % images.length;
+            updateDisplay();
+        });
+
+        nextButton.addEventListener('click', () => {
+            currentImageIndex = (currentImageIndex + 1) % images.length;
+            updateDisplay();
+        });
+
+        // Update display when mode changes
+        displayModeSelect.addEventListener('change', () => {
+            currentImageIndex = 0; // Reset to first image when switching modes
+            updateDisplay();
+        });
+
+        // Initial display
+        updateDisplay();
+    </script>
 </body>
 </html>
