@@ -1,0 +1,245 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PhotoMatch Demo</title>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.20.15/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-router-dom@6.26.2/dist/umd/react-router-dom.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+    const { BrowserRouter, Routes, Route, Link, useNavigate } = ReactRouterDOM;
+
+    // Mock data for 10 users
+    const mockProfiles = [
+      { id: 'user1', photo: 'https://source.unsplash.com/random/300x300?person1', description: 'Love hiking and coffee!' },
+      { id: 'user2', photo: 'https://source.unsplash.com/random/300x300?person2', description: 'Avid reader and foodie.' },
+      { id: 'user3', photo: 'https://source.unsplash.com/random/300x300?person3', description: 'Travel enthusiast.' },
+      { id: 'user4', photo: 'https://source.unsplash.com/random/300x300?person4', description: 'Music is my life!' },
+      { id: 'user5', photo: 'https://source.unsplash.com/random/300x300?person5', description: 'Dog lover and gamer.' },
+      { id: 'user6', photo: 'https://source.unsplash.com/random/300x300?person6', description: 'Into yoga and mindfulness.' },
+      { id: 'user7', photo: 'https://source.unsplash.com/random/300x300?person7', description: 'Aspiring chef.' },
+      { id: 'user8', photo: 'https://source.unsplash.com/random/300x300?person8', description: 'Beach vibes only.' },
+      { id: 'user9', photo: 'https://source.unsplash.com/random/300x300?person9', description: 'Art and creativity.' },
+      { id: 'user10', photo: 'https://source.unsplash.com/random/300x300?person10', description: 'Adventure seeker.' },
+    ];
+
+    // Page A: Photo display with toggle and countdown
+    function PageA() {
+      const [displayMode, setDisplayMode] = useState('single'); // 'single' or 'grid'
+      const [selectedProfile, setSelectedProfile] = useState(null);
+      const [countdown, setCountdown] = useState(null);
+      const navigate = useNavigate();
+
+      const handlePhotoClick = (profile) => {
+        setSelectedProfile(profile);
+        setCountdown(15);
+      };
+
+      useEffect(() => {
+        if (countdown !== null && countdown > 0) {
+          const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+          return () => clearTimeout(timer);
+        } else if (countdown === 0) {
+          setSelectedProfile(null);
+          setCountdown(null);
+        }
+      }, [countdown]);
+
+      const getRandomProfiles = (count) => {
+        const shuffled = [...mockProfiles].sort(() => Math.random() - 0.5);
+        return shuffled.slice(0, count);
+      };
+
+      return (
+        <div className="min-h-screen bg-gray-100 p-4 max-w-md mx-auto">
+          <div className="flex justify-between items-center mb-4">
+            <h1 className="text-2xl font-bold">PhotoMatch</h1>
+            <Link to="/page-b" className="text-blue-500 underline">Go to Page B</Link>
+          </div>
+          <div className="mb-4">
+            <button
+              onClick={() => setDisplayMode(displayMode === 'single' ? 'grid' : 'single')}
+              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 w-full"
+            >
+              {displayMode === 'single' ? 'Switch to Grid (4 Photos)' : 'Switch to Single Photo'}
+            </button>
+          </div>
+          {displayMode === 'single' ? (
+            <div className="bg-white p-4 rounded-lg shadow-md relative">
+              {mockProfiles.map((profile) => (
+                <div key={profile.id} className={selectedProfile?.id === profile.id ? '' : 'hidden'}>
+                  <img
+                    src={profile.photo}
+                    alt="Profile"
+                    className="w-full h-64 object-cover rounded mb-4 cursor-pointer"
+                    onClick={() => handlePhotoClick(profile)}
+                  />
+                  {selectedProfile?.id === profile.id && countdown !== null && (
+                    <div className="absolute top-0 left-0 w-full h-full bg-black bg-opacity-50 flex items-center justify-center">
+                      <span className="text-white text-4xl">{countdown}</span>
+                    </div>
+                  )}
+                  <p className="text-lg">{profile.description}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-4">
+              {getRandomProfiles(4).map((profile) => (
+                <div key={profile.id} className="bg-white p-4 rounded-lg shadow-md relative">
+                  <img
+                    src={profile.photo}
+                    alt="Profile"
+                    className="w-full h-32 object-cover rounded mb-2 cursor-pointer"
+                    onClick={() => handlePhotoClick(profile)}
+                  />
+                  {selectedProfile?.id === profile.id && countdown !== null && (
+                    <div className="absolute top-0 left-0 w-full h-full bg-black bg-opacity-50 flex items-center justify-center">
+                      <span className="text-white text-2xl">{countdown}</span>
+                    </div>
+                  )}
+                  <p className="text-sm truncate">{profile.description}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Page B: Invitation popup
+    function PageB() {
+      const [invitation, setInvitation] = useState(null);
+
+      // Simulate receiving an invitation when a photo is clicked on Page A
+      useEffect(() => {
+        const handleInvitation = (profile) => {
+          setInvitation(profile);
+        };
+
+        // Mock event listener for demo (in real app, this would come from Socket.IO)
+        window.addEventListener('photoClicked', (e) => handleInvitation(e.detail));
+        return () => window.removeEventListener('photoClicked', handleInvitation);
+      }, []);
+
+      const acceptInvitation = () => {
+        alert('Match accepted! (Demo: Chat would start here)');
+        setInvitation(null);
+      };
+
+      const declineInvitation = () => {
+        setInvitation(null);
+      };
+
+      return (
+        <div className="min-h-screen bg-gray-100 p-4 max-w-md mx-auto">
+          <div className="flex justify-between items-center mb-4">
+            <h1 className="text-2xl font-bold">Invitations</h1>
+            <Link to="/" className="text-blue-500 underline">Go to Page A</Link>
+          </div>
+          <p className="text-center text-gray-600">Click a photo on Page A to see an invitation here.</p>
+          {invitation && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+              <div className="bg-white p-6 rounded-lg shadow-md max-w-sm w-full">
+                <h2 className="text-xl font-semibold mb-4">Match Invitation</h2>
+                <img
+                  src={invitation.photo}
+                  alt="Inviter"
+                  className="w-full h-48 object-cover rounded mb-4"
+                />
+                <p className="mb-4">{invitation.description}</p>
+                <div className="flex space-x-4">
+                  <button
+                    onClick={acceptInvitation}
+                    className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 flex-1"
+                  >
+                    Accept
+                  </button>
+                  <button
+                    onClick={declineInvitation}
+                    className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 flex-1"
+                  >
+                    Decline
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Main App
+    function App() {
+      return (
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<PageA />} />
+            <Route path="/page-b" element={<PageB />} />
+          </Routes>
+        </BrowserRouter>
+      );
+    }
+
+    // Simulate photo click event for demo
+    document.addEventListener('click', (e) => {
+      if (e.target.tagName === 'IMG' && e.target.closest('.cursor-pointer')) {
+        const profileId = e.target.closest('[data-profile-id]')?.dataset.profileId;
+        const profile = mockProfiles.find((p) => p.id === profileId);
+        if (profile) {
+          window.dispatchEvent(new CustomEvent('photoClicked', { detail: profile }));
+        }
+      }
+    });
+
+    // Render
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>
