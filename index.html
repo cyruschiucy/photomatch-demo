@@ -42,6 +42,18 @@
             font-size: 0.85rem;
             margin-top: 0.3rem;
         }
+        .music-tag {
+            position: absolute;
+            top: 0.5rem;
+            left: 0.5rem;
+            font-size: 0.7rem;
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+            z-index: 5;
+        }
+        .music-tag .music-symbol {
+            color: #3b82f6; /* Blue color for ♫ */
+        }
         .notification {
             position: fixed;
             top: 20%;
@@ -78,6 +90,9 @@
             }
             .tags {
                 font-size: 0.7rem;
+            }
+            .music-tag {
+                font-size: 0.6rem;
             }
             .pull-to-refresh {
                 font-size: 0.75rem;
@@ -125,7 +140,8 @@
             {
                 src: 'https://i.imgur.com/rKcDCZ2.jpeg',
                 desc: '30+ 認真拍長拖 想結婚 唔生仔 先好搵',
-                tags: ['走人地', '外協', '肉地']
+                tags: ['走人地', '外協', '肉地'],
+                music: { song: '佛道說', singer: 'Novel Fergus' }
             },
             {
                 src: 'https://i.imgur.com/vUPPe5G.jpeg',
@@ -135,7 +151,8 @@
             {
                 src: 'https://i.imgur.com/rANKGoB.jpeg',
                 desc: '心事台 傾下計',
-                tags: ['156cm', '走甜', '走人地走spfwb']
+                tags: ['156cm', '走甜', '走人地走spfwb'],
+                music: { song: 'Perfect', singer: 'Ed Sheeran' }
             },
             {
                 src: 'https://i.imgur.com/TjWJr2G.jpeg',
@@ -150,7 +167,8 @@
             {
                 src: 'https://i.imgur.com/m1KBN1X.jpeg',
                 desc: '有冇可以陪我一齊on9 ge人',
-                tags: ['ugrad', '唔約', '']
+                tags: ['ugrad', '唔約', ''],
+                music: { song: '說謊者', singer: '張天賦' }
             },
             {
                 src: 'https://i.imgur.com/vqTIok6.jpeg',
@@ -160,7 +178,8 @@
             {
                 src: 'https://i.imgur.com/y1QdGpM.jpeg',
                 desc: '28 185 自住 車巴 專業 即出',
-                tags: ['enfj', '天秤', '人地']
+                tags: ['enfj', '天秤', '人地'],
+                music: { song: 'Viva la Vida', singer: 'Coldplay' }
             }
         ];
 
@@ -224,6 +243,12 @@
             div.appendChild(img);
             div.appendChild(descDiv);
             div.appendChild(timerDiv);
+            if (image.music) {
+                const musicDiv = document.createElement('div');
+                musicDiv.className = 'music-tag';
+                musicDiv.innerHTML = `<span class="music-symbol">♫</span> - ${image.music.song} - ${image.music.singer}`;
+                div.appendChild(musicDiv);
+            }
             return div;
         }
 
@@ -258,6 +283,7 @@
             const newImage = getRandomItems(availableImages, 1)[0];
             const img = photoDiv.querySelector('img');
             const descDiv = photoDiv.querySelector('.desc-box');
+            const musicDiv = photoDiv.querySelector('.music-tag');
             img.src = newImage.src;
             img.alt = newImage.desc;
             descDiv.innerHTML = '';
@@ -272,6 +298,13 @@
                 descDiv.appendChild(tagsSpan);
             }
             descDiv.className = `desc-box ${descPositionSelect.value === 'middle' ? 'desc-middle' : 'desc-bottom'}`;
+            if (musicDiv) musicDiv.remove();
+            if (newImage.music) {
+                const newMusicDiv = document.createElement('div');
+                newMusicDiv.className = 'music-tag';
+                newMusicDiv.innerHTML = `<span class="music-symbol">♫</span> - ${newImage.music.song} - ${newImage.music.singer}`;
+                photoDiv.appendChild(newMusicDiv);
+            }
             if (mode === 'one') {
                 currentImageIndex = images.findIndex(img => img.src === newImage.src);
             }
