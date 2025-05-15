@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Photo Display App</title>
+    <title>Photo Display</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .aspect-9-16 {
@@ -64,9 +64,7 @@
     </style>
 </head>
 <body class="bg-gray-100">
-    <div class="container mx-auto p-4 flex-1">
-        <h1 class="text-3xl font-bold text-center mb-6">Photo Display App</h1>
-        
+    <div class="container mx-auto p-6 flex-1">
         <!-- Display Mode Selection -->
         <div class="mb-6 text-center space-y-4">
             <div>
@@ -147,6 +145,8 @@
         let currentImageIndex = 0;
         let timers = new Map();
         let scrollTimeout = null;
+        let lastScrollY = window.scrollY;
+        let bottomReached = false;
 
         function showNotification(message) {
             const notification = document.createElement('div');
@@ -280,12 +280,24 @@
 
         window.addEventListener('scroll', () => {
             if (displayModeSelect.value !== 'four' || timers.size > 0) return;
-            if (window.scrollY === 0) {
+
+            const currentScrollY = window.scrollY;
+            const isScrollingUp = currentScrollY < lastScrollY;
+            const isBottomVisible = window.innerHeight + currentScrollY >= document.documentElement.offsetHeight;
+
+            if (isBottomVisible) {
+                bottomReached = true;
+            }
+
+            if (bottomReached && isScrollingUp) {
                 if (scrollTimeout) clearTimeout(scrollTimeout);
                 scrollTimeout = setTimeout(() => {
                     updateDisplay();
+                    bottomReached = false; // Reset after refresh
                 }, 1000);
             }
+
+            lastScrollY = currentScrollY;
         });
 
         skipButton.addEventListener('click', () => {
