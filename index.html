@@ -27,10 +27,23 @@
                 font-size: 0.75rem; /* Smaller description text on mobile */
             }
         }
+        /* Notification styling */
+        .notification {
+            position: fixed;
+            top: 20%;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #ef4444; /* Red background */
+            color: white;
+            padding: 1rem 2rem;
+            border-radius: 0.5rem;
+            z-index: 50;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center">
-    <div class="container mx-auto p-4">
+<body class="bg-gray-100">
+    <div class="container mx-auto p-4 flex-1">
         <h1 class="text-3xl font-bold text-center mb-6">Photo Display App</h1>
         
         <!-- Display Mode Selection -->
@@ -42,7 +55,7 @@
             </select>
         </div>
 
-        <!-- Refresh Button for 4 Photos Mode -->
+        <!-- Refreshspring Boot Button for 4 Photos Mode -->
         <div id="refreshButtonContainer" class="mb-4 flex justify-center hidden">
             <button id="refreshButton" class="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600">Refresh</button>
         </div>
@@ -102,6 +115,18 @@
         const refreshButton = document.getElementById('refreshButton');
         let currentImageIndex = 0;
         let timers = new Map(); // Track timers for each photo
+        let isRefreshing = false; // Prevent multiple refreshes
+
+        // Function to show notification
+        function showNotification(message) {
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            setTimeout(() => {
+                notification.remove();
+            }, 2000); // Remove after 2 seconds
+        }
 
         // Function to get random items
         function getRandomItems(array, n) {
@@ -133,7 +158,11 @@
         // Function to start countdown timer
         function startCountdown(photoDiv, mode) {
             const index = photoDiv.dataset.index;
-            if (timers.has(index)) return; // Prevent multiple timers
+            // Check if any timer is already running
+            if (timers.size > 0) {
+                showNotification('Please wait for the current countdown to finish!');
+                return;
+            }
 
             const timerDiv = photoDiv.querySelector(`#timer-${index}`);
             let timeLeft = 15;
@@ -159,7 +188,7 @@
             const newImage = getRandomItems(images, 1)[0];
             const index = photoDiv.dataset.index;
             const img = photoDiv.querySelector('img');
-            const descDiv = photoDiv.querySelector('.bg-black.bg-opacity-70');
+            const descDiv = document.querySelector('.bg-black.bg-opacity-70');
             img.src = newImage.src;
             descDiv.textContent = newImage.desc;
             if (mode === 'one') {
@@ -195,7 +224,23 @@
                 div.querySelector('img').addEventListener('click', () => startCountdown(div, 'one'));
                 photoContainer.appendChild(div);
             }
+
+            isRefreshing = false; // Reset refresh flag
         }
+
+        // Scroll event listener for refresh in 4-photos mode
+        window.addEventListener('scroll', () => {
+            if (displayModeSelect.value !== 'four' || isRefreshing) return;
+
+            const scrollPosition = window.scrollY + window.innerHeight;
+            const documentHeight = document.documentElement.scrollHeight;
+
+            // Trigger refresh when scrolled to bottom
+            if (scrollPosition >= documentHeight - 10) { // Small buffer
+                isRefreshing = true; // Prevent multiple triggers
+                updateDisplay();
+            }
+        });
 
         // Skip button handler for random photo in 1 Photo mode
         skipButton.addEventListener('click', () => {
