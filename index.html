@@ -17,6 +17,7 @@
             width: 33%;
             aspect-ratio: 1/1;
             font-size: 2rem;
+            z-index: 10;
         }
         .desc-middle {
             position: absolute;
@@ -29,8 +30,33 @@
             text-align: center;
             padding: 0.5rem;
             text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+            z-index: 5;
         }
         .desc-bottom {
+            position: absolute;
+            bottom: 2rem; /* Space for tags */
+            left: 0;
+            right: 0;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            text-align: center;
+            padding: 0.5rem;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+            z-index: 5;
+        }
+        .tags-middle {
+            position: absolute;
+            top: calc(50% + 2rem); /* Below description */
+            left: 0;
+            right: 0;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            text-align: center;
+            padding: 0.3rem;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+            z-index: 5;
+        }
+        .tags-bottom {
             position: absolute;
             bottom: 0;
             left: 0;
@@ -38,7 +64,29 @@
             background-color: rgba(0, 0, 0, 0.7);
             color: white;
             text-align: center;
-            padding: 0.5remFacilitator: none;
+            padding: 0.3rem;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+            z-index: 5;
+        }
+        .notification {
+            position: fixed;
+            top: 20%;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #ef4444;
+            color: white;
+            padding: 1rem 2rem;
+            border-radius: 0.5rem;
+            z-index: 50;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .pull-to-refresh {
+            position: fixed;
+            bottom: 1rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(255, 255, 255, 0.9);
+            color: #333;
             padding: 0.5rem 1rem;
             border-radius: 0.5rem;
             font-size: 0.875rem;
@@ -52,6 +100,11 @@
             }
             .desc-middle, .desc-bottom {
                 font-size: 0.75rem;
+                padding: 0.4rem;
+            }
+            .tags-middle, .tags-bottom {
+                font-size: 0.7rem;
+                padding: 0.2rem;
             }
             .pull-to-refresh {
                 font-size: 0.75rem;
@@ -97,36 +150,44 @@
     <script>
         const images = [
             {
-                src: 'https://i.imgur.com/KpNJxKh.jpeg',
-                desc: '30+ 認真拍長拖 想結婚 唔生仔 先好搵'
+                src: 'https://i.imgur.com/rKcDCZ2.jpeg',
+                desc: '30+ 認真拍長拖 想結婚 唔生仔 先好搵',
+                tags: ['走人地', '外協', '肉地']
             },
             {
-                src: 'https://i.imgur.com/FfKlpV8.png',
-                desc: '有肌肉ge 男仔好吸引 90後'
+                src: 'https://i.imgur.com/vUPPe5G.jpeg',
+                desc: '有肌肉ge 男仔好吸引 90後',
+                tags: ['', '', '']
             },
             {
-                src: 'https://i.imgur.com/LoC9uFk.png',
-                desc: '心事台 傾下計'
+                src: 'https://i.imgur.com/rANKGoB.jpeg',
+                desc: '心事台 傾下計',
+                tags: ['156cm', '走甜', '走人地走spfwb']
             },
             {
-                src: 'https://i.imgur.com/CoetAIO.png',
-                desc: '搵02 金牛座 走甜走人地'
+                src: 'https://i.imgur.com/TjWJr2G.jpeg',
+                desc: '搵02 金牛座 走甜走人地',
+                tags: ['正常人搵正常人', '', '']
             },
             {
-                src: 'https://i.imgur.com/8E6MiaH.png',
-                desc: '25 ugrad 正常人 pleaseeeeeee'
+                src: 'https://i.imgur.com/KZRyqYc.jpeg',
+                desc: '25 ugrad 正常人 pleaseeeeeee',
+                tags: ['', '', '']
             },
             {
-                src: 'https://i.imgur.com/q23l4gY.png',
-                desc: '有冇可以陪我一齊on9 ge人'
+                src: 'https://i.imgur.com/m1KBN1X.jpeg',
+                desc: '有冇可以陪我一齊on9 ge人',
+                tags: ['ugrad', '唔約', '']
             },
             {
-                src: 'https://i.imgur.com/AdYtqwg.png',
-                desc: '唔伏外協 可愛'
+                src: 'https://i.imgur.com/vqTIok6.jpeg',
+                desc: '唔伏外協 可愛',
+                tags: ['認真', '走人地', '痴身']
             },
             {
-                src: 'https://i.imgur.com/F7z5TKX.png',
-                desc: '28 185 自住 車巴 專業 即出'
+                src: 'https://i.imgur.com/y1QdGpM.jpeg',
+                desc: '28 185 自住 車巴 專業 即出',
+                tags: ['enfj', '天秤', '人地']
             }
         ];
 
@@ -174,12 +235,16 @@
             const descDiv = document.createElement('div');
             descDiv.className = descPositionSelect.value === 'middle' ? 'desc-middle' : 'desc-bottom';
             descDiv.textContent = image.desc;
+            const tagsDiv = document.createElement('div');
+            tagsDiv.className = descPositionSelect.value === 'middle' ? 'tags-middle' : 'tags-bottom';
+            tagsDiv.textContent = `#${image.tags.join(' #')}`;
             const timerDiv = document.createElement('div');
             timerDiv.className = 'timer-circle absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-black bg-opacity-70 text-white hidden';
             timerDiv.id = `timer-${div.dataset.id}`;
             timerDiv.setAttribute('aria-live', 'polite');
             div.appendChild(img);
             div.appendChild(descDiv);
+            div.appendChild(tagsDiv);
             div.appendChild(timerDiv);
             return div;
         }
@@ -215,10 +280,13 @@
             const newImage = getRandomItems(availableImages, 1)[0];
             const img = photoDiv.querySelector('img');
             const descDiv = photoDiv.querySelector('.desc-middle, .desc-bottom');
+            const tagsDiv = photoDiv.querySelector('.tags-middle, .tags-bottom');
             img.src = newImage.src;
             img.alt = newImage.desc;
             descDiv.textContent = newImage.desc;
             descDiv.className = descPositionSelect.value === 'middle' ? 'desc-middle' : 'desc-bottom';
+            tagsDiv.textContent = `[#${newImage.tags.join(' #')}]`;
+            tagsDiv.className = descPositionSelect.value === 'middle' ? 'tags-middle' : 'tags-bottom';
             if (mode === 'one') {
                 currentImageIndex = images.findIndex(img => img.src === newImage.src);
             }
@@ -234,7 +302,7 @@
 
             if (mode === 'four' && timers.size > 0) {
                 activeId = [...timers.keys()][0];
-                activePhotoDiv = photoContainer.querySelector(`[data-id="${activeId}"]`);
+                activePhotoDiv = document.querySelector(`[data-id="${activeId}"]`);
             } else {
                 timers.forEach(timer => clearInterval(timer));
                 timers.clear();
