@@ -88,6 +88,30 @@
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             font-size: 1rem;
         }
+        .confirmation-popup {
+            position: fixed;
+            top: 40%;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #3b82f6;
+            color: white;
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            z-index: 50;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        .confirmation-popup button {
+            margin-top: 1rem;
+            background-color: #ffffff;
+            color: #3b82f6;
+            padding: 0.5rem 1rem;
+            border-radius: 0.25rem;
+            cursor: pointer;
+        }
+        .confirmation-popup button:hover {
+            background-color: #e5e7eb;
+        }
         .pull-to-refresh {
             position: fixed;
             bottom: 1rem;
@@ -123,7 +147,7 @@
                 font-size: 0.75rem;
                 padding: 0.4rem 0.8rem;
             }
-            .session-popup {
+            .session-popup, .confirmation-popup {
                 font-size: 0.875rem;
                 padding: 0.8rem 1.5rem;
             }
@@ -172,7 +196,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 
     <script>
-        // Initialize Firebase (replace with your Firebase config)
+        // Initialize Firebase
         const firebaseConfig = {
             apiKey: "AIzaSyCuDzchHx0AhrDzmnNjQ6f0YpwKhPpUqo0",
             authDomain: "photomatch-demo.firebaseapp.com",
@@ -197,6 +221,8 @@
         let scrollTimeout = null;
         let lastScrollY = window.scrollY;
         let bottomReached = false;
+        const currentSessionId = localStorage.getItem('sessionId') || Math.random().toString(36).substr(2, 9);
+        localStorage.setItem('sessionId', currentSessionId);
 
         // Fetch photos from Firestore
         function fetchPhotos() {
@@ -206,7 +232,6 @@
                     images = [];
                     snapshot.forEach(doc => {
                         const data = doc.data();
-                        // Ensure all required fields are present
                         if (data.src && data.desc) {
                             images.push({
                                 src: data.src || 'https://via.placeholder.com/900x1600',
@@ -220,12 +245,12 @@
                     updateDisplay();
                 }, error => {
                     console.error('Error fetching photos:', error);
-                    // Fallback to an empty array if fetch fails
                     images = [];
                     updateDisplay();
                 });
         }
 
+        // Show notification
         function showNotification(message) {
             const notification = document.createElement('div');
             notification.className = 'notification';
@@ -237,6 +262,7 @@
             }, 2000);
         }
 
+        // Show session ID popup
         function showSessionPopup(sessionId) {
             const popup = document.createElement('div');
             popup.className = 'session-popup';
@@ -248,13 +274,63 @@
             }, 2000);
         }
 
+        // Show confirmation popup with countdown
+        function showConfirmationPopup(sessionId, callback) {
+            const popup = document.createElement('div');
+            popup.className = 'confirmation-popup';
+            const message = document.createElement('div');
+            message.textContent = `Confirm selection of Session ID: ${sessionId}`;
+            const timer = document.createElement('div');
+            let timeLeft = 15;
+            timer.textContent = `Time remaining: ${timeLeft}s`;
+            const confirmButton = document.createElement('button');
+            confirmButton.textContent = 'Confirm';
+            popup.appendChild(message);
+            popup.appendChild(timer);
+            popup.appendChild(confirmButton);
+            document.body.appendChild(popup);
+
+            const countdown = setInterval(() => {
+                timeLeft--;
+                timer.textContent = `Time remaining: ${timeLeft}s`;
+                if (timeLeft <= 0) {
+                    clearInterval(countdown);
+                    popup.remove();
+                }
+            }, 1000);
+
+            confirmButton.addEventListener('click', () => {
+                clearInterval(countdown);
+                popup.remove();
+                callback();
+            });
+        }
+
+        // Listen for click notifications
+        function listenForNotifications() {
+            db.collection('click_notifications')
+                .where('targetSessionId', '==', currentSessionId)
+                .where('timestamp', '>=', new Date(Date.now() - 60000)) // Only recent clicks (last 60s)
+                .onSnapshot(snapshot => {
+                    snapshot.docChanges().forEach(change => {
+                        if (change.type === 'added') {
+                            const data = change.data();
+                            showNotification(`Your photo (Session ID: ${currentSessionId}) was selected by another user!`);
+                            // Delete the notification after processing to avoid duplicates
+                            db.collection('click_notifications').doc(change.doc.id).delete();
+                        }
+                    });
+                }, error => {
+                    console.error('Error listening for notifications:', error);
+                });
+        }
+
         function getRandomItems(array, n) {
             const shuffled = [...array].sort(() => Math.random() - 0.5);
             return shuffled.slice(0, Math.min(n, array.length));
         }
 
         function createPhotoElement(image, index) {
-            // Safeguard against undefined image
             if (!image || typeof image !== 'object') {
                 image = { src: 'https://via.placeholder.com/900x1600', desc: 'Error loading image', tags: ['', '', ''], music: null, sessionId: 'Unknown' };
             }
@@ -284,7 +360,8 @@
             }
             const timerDiv = document.createElement('div');
             timerDiv.className = 'timer-circle absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-black bg-opacity-70 text-white hidden';
-            timerDiv.id = `timer-${btoa(image.src).slice(0, 10)}`;
+            timerDiv.id = `timer-${btoa(image.src).
+slice(0, 10)}`;
             timerDiv.setAttribute('aria-live', 'polite');
             div.appendChild(img);
             div.appendChild(descDiv);
@@ -398,6 +475,14 @@
                     const photoDiv = createPhotoElement(image, i);
                     photoDiv.querySelector('img').addEventListener('click', () => {
                         showSessionPopup(photoDiv.dataset.sessionId);
+                        showConfirmationPopup(photoDiv.dataset.sessionId, () => {
+                            db.collection('click_notifications').add({
+                                targetSessionId: photoDiv.dataset.sessionId,
+                                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                            }).catch(error => {
+                                console.error('Error sending notification:', error);
+                            });
+                        });
                         startCountdown(photoDiv, 'four');
                     });
                     tempContainer.appendChild(photoDiv);
@@ -410,6 +495,14 @@
                 const div = createPhotoElement(images[currentImageIndex] || { src: 'https://via.placeholder.com/900x1600', desc: 'No image available', tags: ['', '', ''], music: null, sessionId: 'Unknown' }, 0);
                 div.querySelector('img').addEventListener('click', () => {
                     showSessionPopup(div.dataset.sessionId);
+                    showConfirmationPopup(div.dataset.sessionId, () => {
+                        db.collection('click_notifications').add({
+                            targetSessionId: div.dataset.sessionId,
+                            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                        }).catch(error => {
+                            console.error('Error sending notification:', error);
+                        });
+                    });
                     startCountdown(div, 'one');
                 });
                 photoContainer.appendChild(div);
@@ -464,8 +557,9 @@
             updateDisplay();
         });
 
-        // Initial fetch of photos
+        // Initial fetch of photos and start notification listener
         fetchPhotos();
+        listenForNotifications();
     </script>
 </body>
 </html>
