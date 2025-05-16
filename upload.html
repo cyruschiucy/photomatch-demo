@@ -1,72 +1,55 @@
-<script type="text/javascript">
-        var gk_isXlsx = false;
-        var gk_xlsxFileLookup = {};
-        var gk_fileData = {};
-        function filledCell(cell) {
-          return cell !== '' && cell != null;
-        }
-        function loadFileData(filename) {
-        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
-            try {
-                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
-                var firstSheetName = workbook.SheetNames[0];
-                var worksheet = workbook.Sheets[firstSheetName];
-
-                // Convert sheet to JSON to filter blank rows
-                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
-                // Filter out blank rows (rows where all cells are empty, null, or undefined)
-                var filteredData = jsonData.filter(row => row.some(filledCell));
-
-                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
-                var headerRowIndex = filteredData.findIndex((row, index) =>
-                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
-                );
-                // Fallback
-                if (headerRowIndex === -1 || headerRowIndex > 25) {
-                  headerRowIndex = 0;
-                }
-
-                // Convert filtered JSON back to CSV
-                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
-                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
-                return csv;
-            } catch (e) {
-                console.error(e);
-                return "";
-            }
-        }
-        return gk_fileData[filename] || "";
-        }
-        </script><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Upload Your Photo</title>
+    <title>Upload Photo</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        .preview-image {
+        .notification {
+            position: fixed;
+            top: 20%;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #ef4444;
+            color: white;
+            padding: 1rem 2rem;
+            border-radius: 0.5rem;
+            z-index: 50;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .photo-preview {
             max-width: 100%;
             max-height: 300px;
             object-fit: contain;
             margin-top: 1rem;
+            border-radius: 0.5rem;
         }
     </style>
 </head>
-<body class="bg-gray-100 flex items-center justify-center min-h-screen">
-    <div class="container mx-auto p-6 bg-white rounded-lg shadow-lg w-full max-w-md">
-        <h1 class="text-2xl font-bold mb-4 text-center">Upload Your Photo</h1>
-        <form id="uploadForm" class="space-y-4">
-            <div>
-                <label for="photoUpload" class="block text-sm font-medium text-gray-700">Upload Photo</label>
-                <input type="file" id="photoUpload" accept="image/*" class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" required>
-                <img id="preview" class="preview-image hidden" alt="Preview">
+<body class="bg-gray-100">
+    <div class="container mx-auto p-6">
+        <h1 class="text-2xl font-bold mb-6 text-center">Upload a Photo</h1>
+        
+        <!-- Back to Index Button -->
+        <a href="index.html" class="mb-6 inline-block bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">Back to Photos</a>
+
+        <!-- Session Info -->
+        <div class="mb-6 text-center">
+            <p id="sessionInfo" class="text-lg font-medium"></p>
+        </div>
+
+        <!-- Upload Form -->
+        <div id="uploadForm" class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <div class="mb-4">
+                <label for="photoInput" class="block text-sm font-medium text-gray-700">Select Photo</label>
+                <input type="file" id="photoInput" accept="image/*" class="mt-1 block w-full p-2 border rounded-lg">
             </div>
-            <div>
+            <div class="mb-4">
                 <label for="description" class="block text-sm font-medium text-gray-700">Description</label>
-                <textarea id="description" class="mt-1 block w-full p-2 border rounded-lg" rows="3" placeholder="Enter description..." required></textarea>
+                <textarea id="description" class="mt-1 block w-full p-2 border rounded-lg" rows="3" placeholder="Enter description"></textarea>
             </div>
-            <div>
+            <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700">Tags (max 3)</label>
                 <div class="flex space-x-2 mt-1">
                     <input type="text" id="tag1" class="w-1/3 p-2 border rounded-lg" placeholder="Tag 1">
@@ -74,80 +57,203 @@
                     <input type="text" id="tag3" class="w-1/3 p-2 border rounded-lg" placeholder="Tag 3">
                 </div>
             </div>
-            <button type="submit" class="w-full bg-blue-500 text-white p-2 rounded-lg hover:bg-blue-600">Submit</button>
-        </form>
+            <button id="uploadButton" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">Upload</button>
+        </div>
+
+        <!-- Current Photo Section -->
+        <div id="currentPhotoSection" class="bg-white p-6 rounded-lg shadow-md hidden">
+            <h2 class="text-xl font-bold mb-4">Current Photo</h2>
+            <div class="mb-4">
+                <img id="currentPhoto" class="photo-preview" src="" alt="Current photo">
+            </div>
+            <div class="mb-4">
+                <label for="currentDescription" class="block text-sm font-medium text-gray-700">Description</label>
+                <textarea id="currentDescription" class="mt-1 block w-full p-2 border rounded-lg" rows="3" placeholder="Enter description"></textarea>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700">Tags (max 3)</label>
+                <div class="flex space-x-2 mt-1">
+                    <input type="text" id="currentTag1" class="w-1/3 p-2 border rounded-lg" placeholder="Tag 1">
+                    <input type="text" id="currentTag2" class="w-1/3 p-2 border rounded-lg" placeholder="Tag 2">
+                    <input type="text" id="currentTag3" class="w-1/3 p-2 border rounded-lg" placeholder="Tag 3">
+                </div>
+            </div>
+            <button id="updateButton" class="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600">Update</button>
+        </div>
     </div>
 
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 
     <script>
-        // Initialize Firebase (replace with your Firebase config)
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: "AIzaSyCuDzchHx0AhrDzmnNjQ6f0YpwKhPpUqo0",
-  authDomain: "photomatch-demo.firebaseapp.com",
-  projectId: "photomatch-demo",
-  storageBucket: "photomatch-demo.firebasestorage.app",
-  messagingSenderId: "138957187291",
-  appId: "1:138957187291:web:8717b276b2d24a121344fe",
-  measurementId: "G-E4C40CW3N3"
-};
+        // Initialize Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyCuDzchHx0AhrDzmnNjQ6f0YpwKhPpUqo0",
+            authDomain: "photomatch-demo.firebaseapp.com",
+            projectId: "photomatch-demo",
+            storageBucket: "photomatch-demo.firebasestorage.app",
+            messagingSenderId: "138957187291",
+            appId: "1:138957187291:web:8717b276b2d24a121344fe",
+            measurementId: "G-E4C40CW3N3"
+        };
         const app = firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
         const storage = firebase.storage();
+        const db = firebase.firestore();
 
+        // Session Management
+        let currentSessionId = localStorage.getItem('sessionId') || Math.random().toString(36).substr(2, 9);
+        localStorage.setItem('sessionId', currentSessionId);
+        let currentPhotoDocId = null;
+
+        const sessionInfo = document.getElementById('sessionInfo');
         const uploadForm = document.getElementById('uploadForm');
-        const photoUpload = document.getElementById('photoUpload');
-        const preview = document.getElementById('preview');
+        const photoInput = document.getElementById('photoInput');
+        const description = document.getElementById('description');
+        const tag1 = document.getElementById('tag1');
+        const tag2 = document.getElementById('tag2');
+        const tag3 = document.getElementById('tag3');
+        const uploadButton = document.getElementById('uploadButton');
+        const currentPhotoSection = document.getElementById('currentPhotoSection');
+        const currentPhoto = document.getElementById('currentPhoto');
+        const currentDescription = document.getElementById('currentDescription');
+        const currentTag1 = document.getElementById('currentTag1');
+        const currentTag2 = document.getElementById('currentTag2');
+        const currentTag3 = document.getElementById('currentTag3');
+        const updateButton = document.getElementById('updateButton');
 
-        photoUpload.addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    preview.src = e.target.result;
-                    preview.classList.remove('hidden');
-                };
-                reader.readAsDataURL(file);
-            }
-        });
+        sessionInfo.textContent = `Your Session ID: ${currentSessionId}`;
 
-        uploadForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            const file = photoUpload.files[0];
-            const description = document.getElementById('description').value;
-            const tag1 = document.getElementById('tag1').value.trim();
-            const tag2 = document.getElementById('tag2').value.trim();
-            const tag3 = document.getElementById('tag3').value.trim();
-            const tags = [tag1, tag2, tag3].filter(tag => tag !== '');
+        // Show notification
+        function showNotification(message) {
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            setTimeout(() => {
+                notification.remove();
+            }, 2000);
+        }
 
-            if (file && description) {
-                // Upload image to Firebase Storage
-                const storageRef = storage.ref(`photos/${Date.now()}_${file.name}`);
-                storageRef.put(file).then(snapshot => {
-                    // Get the download URL
-                    snapshot.ref.getDownloadURL().then(downloadURL => {
-                        // Save metadata to Firestore
-                        db.collection('photos').add({
-                            src: downloadURL,
-                            desc: description,
-                            tags: tags.length > 0 ? tags.concat(Array(3 - tags.length).fill('')) : ['', '', ''],
-                            music: null,
-                            timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                        }).then(() => {
-                            window.location.href = 'index.html';
-                        }).catch(error => {
-                            console.error('Error saving to Firestore:', error);
-                        });
-                    });
-                }).catch(error => {
-                    console.error('Error uploading image:', error);
+        // Check for existing photo in session
+        function checkSessionPhoto() {
+            db.collection('photos')
+                .where('sessionId', '==', currentSessionId)
+                .orderBy('timestamp', 'desc')
+                .limit(1)
+                .get()
+                .then(snapshot => {
+                    if (!snapshot.empty) {
+                        const doc = snapshot.docs[0];
+                        currentPhotoDocId = doc.id;
+                        const data = doc.data();
+                        currentPhoto.src = data.src;
+                        currentPhoto.alt = data.desc;
+                        currentDescription.value = data.desc;
+                        const tags = data.tags || ['', '', ''];
+                        currentTag1.value = tags[0];
+                        currentTag2.value = tags[1];
+                        currentTag3.value = tags[2];
+                        currentPhotoSection.classList.remove('hidden');
+                        uploadForm.classList.add('hidden');
+                    } else {
+                        currentPhotoSection.classList.add('hidden');
+                        uploadForm.classList.remove('hidden');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking session photo:', error.message, error.code);
+                    showNotification('Error checking session photo. Check console for details.');
                 });
+        }
+
+        // Upload photo
+        uploadButton.addEventListener('click', () => {
+            const file = photoInput.files[0];
+            if (!file) {
+                showNotification('Please select a photo to upload.');
+                return;
             }
+
+            const descriptionText = description.value.trim();
+            if (!descriptionText) {
+                showNotification('Please enter a description.');
+                return;
+            }
+
+            const tags = [
+                tag1.value.trim(),
+                tag2.value.trim(),
+                tag3.value.trim()
+            ].concat(Array(3 - Math.min(3, [tag1.value.trim(), tag2.value.trim(), tag3.value.trim()].filter(t => t).length)).fill(''));
+
+            const storageRef = storage.ref(`photos/${Date.now()}_${file.name}`);
+            storageRef.put(file)
+                .then(snapshot => snapshot.ref.getDownloadURL())
+                .then(downloadURL => {
+                    const photoData = {
+                        src: downloadURL,
+                        desc: descriptionText,
+                        tags: tags,
+                        sessionId: currentSessionId,
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                    };
+                    return db.collection('photos').add(photoData);
+                })
+                .then(docRef => {
+                    currentPhotoDocId = docRef.id;
+                    showNotification('Photo uploaded successfully!');
+                    photoInput.value = '';
+                    description.value = '';
+                    tag1.value = '';
+                    tag2.value = '';
+                    tag3.value = '';
+                    checkSessionPhoto();
+                })
+                .catch(error => {
+                    console.error('Error uploading photo:', error.message, error.code);
+                    showNotification('Error uploading photo. Check console for details.');
+                });
         });
+
+        // Update photo details
+        updateButton.addEventListener('click', () => {
+            if (!currentPhotoDocId) {
+                showNotification('No photo to update.');
+                return;
+            }
+
+            const descriptionText = currentDescription.value.trim();
+            if (!descriptionText) {
+                showNotification('Please enter a description.');
+                return;
+            }
+
+            const tags = [
+                currentTag1.value.trim(),
+                currentTag2.value.trim(),
+                currentTag3.value.trim()
+            ].concat(Array(3 - Math.min(3, [currentTag1.value.trim(), currentTag2.value.trim(), currentTag3.value.trim()].filter(t => t).length)).fill(''));
+
+            const updatedData = {
+                desc: descriptionText,
+                tags: tags,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            db.collection('photos').doc(currentPhotoDocId).update(updatedData)
+                .then(() => {
+                    showNotification('Photo details updated successfully!');
+                })
+                .catch(error => {
+                    console.error('Error updating photo:', error.message, error.code);
+                    showNotification('Error updating photo details. Check console for details.');
+                });
+        });
+
+        // Initial check for session photo
+        checkSessionPhoto();
     </script>
 </body>
 </html>
