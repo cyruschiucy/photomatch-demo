@@ -52,7 +52,7 @@
             z-index: 5;
         }
         .music-tag .music-symbol {
-            color: #3b82f6;
+            color: #3b82f6; /* Blue color for ♫ */
         }
         .super-like {
             position: absolute;
@@ -74,10 +74,19 @@
             border-radius: 0.5rem;
             z-index: 50;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            display: none;
         }
-        .notification.active {
-            display: block;
+        .session-popup {
+            position: fixed;
+            top: 30%;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #10b981;
+            color: white;
+            padding: 1rem 2rem;
+            border-radius: 0.5rem;
+            z-index: 50;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            font-size: 1rem;
         }
         .pull-to-refresh {
             position: fixed;
@@ -113,6 +122,10 @@
             .pull-to-refresh {
                 font-size: 0.75rem;
                 padding: 0.4rem 0.8rem;
+            }
+            .session-popup {
+                font-size: 0.875rem;
+                padding: 0.8rem 1.5rem;
             }
         }
     </style>
@@ -152,13 +165,6 @@
 
         <!-- Pull to Refresh Indicator -->
         <div id="pullToRefresh" class="pull-to-refresh">Pull to refresh</div>
-
-        <!-- Notification Popup -->
-        <div id="notification" class="notification">
-            <p>Someone clicked your photo! Confirm within <span id="countdown">15</span> seconds.</p>
-            <button id="confirmButton" class="mt-2 bg-green-500 text-white px-3 py-1 rounded-lg hover:bg-green-600">Confirm</button>
-            <button id="declineButton" class="mt-2 bg-red-500 text-white px-3 py-1 rounded-lg hover:bg-red-600 ml-2">Decline</button>
-        </div>
     </div>
 
     <!-- Firebase SDK -->
@@ -166,7 +172,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 
     <script>
-        // Initialize Firebase
+        // Initialize Firebase (replace with your Firebase config)
         const firebaseConfig = {
             apiKey: "AIzaSyCuDzchHx0AhrDzmnNjQ6f0YpwKhPpUqo0",
             authDomain: "photomatch-demo.firebaseapp.com",
@@ -180,24 +186,17 @@
         const db = firebase.firestore();
 
         let images = [];
-        const currentSessionId = localStorage.getItem('sessionId') || Math.random().toString(36).substr(2, 9);
-        localStorage.setItem('sessionId', currentSessionId);
         const displayModeSelect = document.getElementById('displayMode');
         const descPositionSelect = document.getElementById('descPosition');
         const photoContainer = document.getElementById('photoContainer');
         const navButtons = document.getElementById('navButtons');
         const skipButton = document.getElementById('skipButton');
         const pullToRefresh = document.getElementById('pullToRefresh');
-        const notification = document.getElementById('notification');
-        const countdown = document.getElementById('countdown');
-        const confirmButton = document.getElementById('confirmButton');
-        const declineButton = document.getElementById('declineButton');
         let currentImageIndex = 0;
         let timers = new Map();
         let scrollTimeout = null;
         let lastScrollY = window.scrollY;
         let bottomReached = false;
-        let notificationTimer = null;
 
         // Fetch photos from Firestore
         function fetchPhotos() {
@@ -207,54 +206,45 @@
                     images = [];
                     snapshot.forEach(doc => {
                         const data = doc.data();
-                        if (data.src && data.desc && data.sessionId) {
+                        // Ensure all required fields are present
+                        if (data.src && data.desc) {
                             images.push({
-                                id: doc.id,
                                 src: data.src || 'https://via.placeholder.com/900x1600',
                                 desc: data.desc || 'No description available',
                                 tags: data.tags || ['', '', ''],
-                                music: data.music || null,
-                                sessionId: data.sessionId
+                                music: data.music || null
                             });
                         }
                     });
                     updateDisplay();
                 }, error => {
                     console.error('Error fetching photos:', error);
+                    // Fallback to an empty array if fetch fails
                     images = [];
                     updateDisplay();
                 });
         }
 
-        function showNotification(sessionId) {
-            if (sessionId === currentSessionId && !notification.classList.contains('active')) {
-                notification.classList.add('active');
-                let timeLeft = 15;
-                countdown.textContent = timeLeft;
-                notificationTimer = setInterval(() => {
-                    timeLeft--;
-                    countdown.textContent = timeLeft;
-                    if (timeLeft <= 0) {
-                        clearInterval(notificationTimer);
-                        notification.classList.remove('active');
-                        db.collection('notifications').doc(sessionId).delete().catch(err => console.error('Error clearing notification:', err));
-                    }
-                }, 1000);
+        function showNotification(message) {
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.textContent = message;
+            notification.setAttribute('role', 'alert');
+            document.body.appendChild(notification);
+            setTimeout(() => {
+                notification.remove();
+            }, 2000);
+        }
 
-                confirmButton.onclick = () => {
-                    clearInterval(notificationTimer);
-                    notification.classList.remove('active');
-                    db.collection('notifications').doc(sessionId).delete().catch(err => console.error('Error clearing notification:', err));
-                    alert('Confirmation received!');
-                };
-
-                declineButton.onclick = () => {
-                    clearInterval(notificationTimer);
-                    notification.classList.remove('active');
-                    db.collection('notifications').doc(sessionId).delete().catch(err => console.error('Error clearing notification:', err));
-                    alert('Declined.');
-                };
-            }
+        function showSessionPopup(sessionId) {
+            const popup = document.createElement('div');
+            popup.className = 'session-popup';
+            popup.textContent = `Session ID: ${sessionId}`;
+            popup.setAttribute('role', 'alert');
+            document.body.appendChild(popup);
+            setTimeout(() => {
+                popup.remove();
+            }, 2000);
         }
 
         function getRandomItems(array, n) {
@@ -263,8 +253,9 @@
         }
 
         function createPhotoElement(image, index) {
+            // Safeguard against undefined image
             if (!image || typeof image !== 'object') {
-                image = { id: null, src: 'https://via.placeholder.com/900x1600', desc: 'Error loading image', tags: ['', '', ''], music: null, sessionId: '' };
+                image = { src: 'https://via.placeholder.com/900x1600', desc: 'Error loading image', tags: ['', '', ''], music: null };
             }
             const div = document.createElement('div');
             div.className = 'aspect-9-16 w-full overflow-hidden rounded-lg relative';
@@ -273,7 +264,7 @@
             img.src = image.src || 'https://via.placeholder.com/900x1600';
             img.alt = image.desc || 'No description';
             img.className = 'w-full h-full object-cover cursor-pointer';
-            img.setAttribute('aria-label', `Click to start countdown for photo with session ID ${image.sessionId}`);
+            img.setAttribute('aria-label', 'Click to view session ID and start countdown timer for photo');
             img.onerror = () => {
                 img.src = 'https://via.placeholder.com/900x1600?text=Image+Failed+to+Load';
                 img.alt = 'Failed to load image';
@@ -317,18 +308,12 @@
                 showNotification('Please wait for the current countdown to finish!');
                 return;
             }
-            const image = images.find(img => btoa(img.src).slice(0, 10) === id);
-            if (image) {
-                db.collection('notifications').doc(image.sessionId).set({
-                    sessionId: image.sessionId,
-                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                }).catch(err => console.error('Error setting notification:', err));
-            }
 
             const timerDiv = photoDiv.querySelector(`#timer-${id}`);
             let timeLeft = 15;
             timerDiv.textContent = timeLeft;
             timerDiv.classList.remove('hidden');
+
             const timer = setInterval(() => {
                 timeLeft--;
                 timerDiv.textContent = timeLeft;
@@ -339,6 +324,7 @@
                     replacePhoto(photoDiv, mode);
                 }
             }, 1000);
+
             timers.set(id, timer);
         }
 
@@ -366,7 +352,7 @@
             if (newImage.music) {
                 const newMusicDiv = document.createElement('div');
                 newMusicDiv.className = 'music-tag';
-                newMusicDiv.innerHTML = `<span class="music-symbol">♫</span> - ${newImage.music.song} - ${newMusicDiv.music.singer}`;
+                newMusicDiv.innerHTML = `<span class="music-symbol">♫</span> - ${newImage.music.song} - ${newImage.music.singer}`;
                 photoDiv.appendChild(newMusicDiv);
             }
             if (mode === 'one') {
@@ -379,6 +365,7 @@
             let activePhotoDiv = null;
             let activeId = null;
 
+            // Clear existing content
             photoContainer.innerHTML = '';
 
             if (mode === 'four' && timers.size > 0) {
@@ -405,9 +392,12 @@
                         tempContainer.appendChild(activePhotoDiv);
                         continue;
                     }
-                    const image = randomImages[i - (activePhotoDiv ? 1 : 0)] || { id: null, src: 'https://via.placeholder.com/900x1600', desc: 'No image available', tags: ['', '', ''], music: null, sessionId: '' };
+                    const image = randomImages[i - (activePhotoDiv ? 1 : 0)] || { src: 'https://via.placeholder.com/900x1600', desc: 'No image available', tags: ['', '', ''], music: null };
                     const photoDiv = createPhotoElement(image, i);
-                    photoDiv.querySelector('img').addEventListener('click', () => startCountdown(photoDiv, 'four'));
+                    photoDiv.querySelector('img').addEventListener('click', () => {
+                        showSessionPopup(photoDiv.dataset.id);
+                        startCountdown(photoDiv, 'four');
+                    });
                     tempContainer.appendChild(photoDiv);
                 }
                 photoContainer.append(...tempContainer.children);
@@ -415,22 +405,14 @@
                 photoContainer.classList.remove('grid-cols-2', 'sm:grid-cols-2', 'lg:grid-cols-4');
                 photoContainer.classList.add('grid-cols-1');
                 navButtons.classList.remove('hidden');
-                const div = createPhotoElement(images[currentImageIndex] || { id: null, src: 'https://via.placeholder.com/900x1600', desc: 'No image available', tags: ['', '', ''], music: null, sessionId: '' }, 0);
-                div.querySelector('img').addEventListener('click', () => startCountdown(div, 'one'));
+                const div = createPhotoElement(images[currentImageIndex] || { src: 'https://via.placeholder.com/900x1600', desc: 'No image available', tags: ['', '', ''], music: null }, 0);
+                div.querySelector('img').addEventListener('click', () => {
+                    showSessionPopup(div.dataset.id);
+                    startCountdown(div, 'one');
+                });
                 photoContainer.appendChild(div);
             }
         }
-
-        // Listen for notifications
-        db.collection('notifications')
-            .onSnapshot(snapshot => {
-                snapshot.docChanges().forEach(change => {
-                    if (change.type === 'added') {
-                        const data = change.doc.data();
-                        showNotification(data.sessionId);
-                    }
-                });
-            });
 
         window.addEventListener('scroll', () => {
             if (displayModeSelect.value !== 'four' || timers.size > 0) {
