@@ -153,16 +153,15 @@
 
     <script>
         // Initialize Firebase (replace with your Firebase config)
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: "AIzaSyCuDzchHx0AhrDzmnNjQ6f0YpwKhPpUqo0",
-  authDomain: "photomatch-demo.firebaseapp.com",
-  projectId: "photomatch-demo",
-  storageBucket: "photomatch-demo.firebasestorage.app",
-  messagingSenderId: "138957187291",
-  appId: "1:138957187291:web:8717b276b2d24a121344fe",
-  measurementId: "G-E4C40CW3N3"
-};
+        const firebaseConfig = {
+            apiKey: "AIzaSyCuDzchHx0AhrDzmnNjQ6f0YpwKhPpUqo0",
+            authDomain: "photomatch-demo.firebaseapp.com",
+            projectId: "photomatch-demo",
+            storageBucket: "photomatch-demo.firebasestorage.app",
+            messagingSenderId: "138957187291",
+            appId: "1:138957187291:web:8717b276b2d24a121344fe",
+            measurementId: "G-E4C40CW3N3"
+        };
         const app = firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
@@ -186,11 +185,23 @@ const firebaseConfig = {
                 .onSnapshot(snapshot => {
                     images = [];
                     snapshot.forEach(doc => {
-                        images.push(doc.data());
+                        const data = doc.data();
+                        // Ensure all required fields are present
+                        if (data.src && data.desc) {
+                            images.push({
+                                src: data.src || 'https://via.placeholder.com/900x1600',
+                                desc: data.desc || 'No description available',
+                                tags: data.tags || ['', '', ''],
+                                music: data.music || null
+                            });
+                        }
                     });
                     updateDisplay();
                 }, error => {
                     console.error('Error fetching photos:', error);
+                    // Fallback to an empty array if fetch fails
+                    images = [];
+                    updateDisplay();
                 });
         }
 
@@ -211,12 +222,16 @@ const firebaseConfig = {
         }
 
         function createPhotoElement(image, index) {
+            // Safeguard against undefined image
+            if (!image || typeof image !== 'object') {
+                image = { src: 'https://via.placeholder.com/900x1600', desc: 'Error loading image', tags: ['', '', ''], music: null };
+            }
             const div = document.createElement('div');
             div.className = 'aspect-9-16 w-full overflow-hidden rounded-lg relative';
             div.dataset.id = btoa(image.src).slice(0, 10);
             const img = document.createElement('img');
-            img.src = image.src;
-            img.alt = image.desc;
+            img.src = image.src || 'https://via.placeholder.com/900x1600';
+            img.alt = image.desc || 'No description';
             img.className = 'w-full h-full object-cover cursor-pointer';
             img.setAttribute('aria-label', 'Click to start countdown timer for photo');
             img.onerror = () => {
@@ -226,9 +241,9 @@ const firebaseConfig = {
             const descDiv = document.createElement('div');
             descDiv.className = `desc-box ${descPositionSelect.value === 'middle' ? 'desc-middle' : 'desc-bottom'}`;
             const descText = document.createElement('div');
-            descText.textContent = image.desc;
+            descText.textContent = image.desc || 'No description available';
             descDiv.appendChild(descText);
-            const validTags = image.tags.filter(tag => tag.trim() !== '');
+            const validTags = (image.tags || ['', '', '']).filter(tag => tag.trim() !== '');
             if (validTags.length > 0) {
                 const tagsSpan = document.createElement('span');
                 tagsSpan.className = 'tags';
@@ -288,13 +303,13 @@ const firebaseConfig = {
             const img = photoDiv.querySelector('img');
             const descDiv = photoDiv.querySelector('.desc-box');
             const musicDiv = photoDiv.querySelector('.music-tag');
-            img.src = newImage.src;
-            img.alt = newImage.desc;
+            img.src = newImage.src || 'https://via.placeholder.com/900x1600';
+            img.alt = newImage.desc || 'No description';
             descDiv.innerHTML = '';
             const descText = document.createElement('div');
-            descText.textContent = newImage.desc;
+            descText.textContent = newImage.desc || 'No description available';
             descDiv.appendChild(descText);
-            const validTags = newImage.tags.filter(tag => tag.trim() !== '');
+            const validTags = (newImage.tags || ['', '', '']).filter(tag => tag.trim() !== '');
             if (validTags.length > 0) {
                 const tagsSpan = document.createElement('span');
                 tagsSpan.className = 'tags';
@@ -346,7 +361,7 @@ const firebaseConfig = {
                         tempContainer.appendChild(activePhotoDiv);
                         continue;
                     }
-                    const image = randomImages[i - (activePhotoDiv ? 1 : 0)];
+                    const image = randomImages[i - (activePhotoDiv ? 1 : 0)] || { src: 'https://via.placeholder.com/900x1600', desc: 'No image available', tags: ['', '', ''], music: null };
                     const photoDiv = createPhotoElement(image, i);
                     photoDiv.querySelector('img').addEventListener('click', () => startCountdown(photoDiv, 'four'));
                     tempContainer.appendChild(photoDiv);
@@ -356,7 +371,7 @@ const firebaseConfig = {
                 photoContainer.classList.remove('grid-cols-2', 'sm:grid-cols-2', 'lg:grid-cols-4');
                 photoContainer.classList.add('grid-cols-1');
                 navButtons.classList.remove('hidden');
-                const div = createPhotoElement(images[currentImageIndex], 0);
+                const div = createPhotoElement(images[currentImageIndex] || { src: 'https://via.placeholder.com/900x1600', desc: 'No image available', tags: ['', '', ''], music: null }, 0);
                 div.querySelector('img').addEventListener('click', () => startCountdown(div, 'one'));
                 photoContainer.appendChild(div);
             }
@@ -396,12 +411,12 @@ const firebaseConfig = {
             const availableIndices = images
                 .map((_, i) => i)
                 .filter(i => i !== currentImageIndex);
-            currentImageIndex = availableIndices[Math.floor(Math.random() * availableIndices.length)];
+            currentImageIndex = availableIndices[Math.floor(Math.random() * availableIndices.length)] || 0;
             updateDisplay();
         });
 
         displayModeSelect.addEventListener('change', () => {
-            currentImageIndex = Math.floor(Math.random() * images.length);
+            currentImageIndex = Math.floor(Math.random() * images.length) || 0;
             pullToRefresh.style.display = 'none';
             updateDisplay();
         });
