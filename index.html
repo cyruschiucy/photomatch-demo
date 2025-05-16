@@ -212,7 +212,8 @@
                                 src: data.src || 'https://via.placeholder.com/900x1600',
                                 desc: data.desc || 'No description available',
                                 tags: data.tags || ['', '', ''],
-                                music: data.music || null
+                                music: data.music || null,
+                                sessionId: data.sessionId || 'Unknown'
                             });
                         }
                     });
@@ -255,11 +256,11 @@
         function createPhotoElement(image, index) {
             // Safeguard against undefined image
             if (!image || typeof image !== 'object') {
-                image = { src: 'https://via.placeholder.com/900x1600', desc: 'Error loading image', tags: ['', '', ''], music: null };
+                image = { src: 'https://via.placeholder.com/900x1600', desc: 'Error loading image', tags: ['', '', ''], music: null, sessionId: 'Unknown' };
             }
             const div = document.createElement('div');
             div.className = 'aspect-9-16 w-full overflow-hidden rounded-lg relative';
-            div.dataset.id = btoa(image.src).slice(0, 10);
+            div.dataset.sessionId = image.sessionId || 'Unknown';
             const img = document.createElement('img');
             img.src = image.src || 'https://via.placeholder.com/900x1600';
             img.alt = image.desc || 'No description';
@@ -283,7 +284,7 @@
             }
             const timerDiv = document.createElement('div');
             timerDiv.className = 'timer-circle absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-black bg-opacity-70 text-white hidden';
-            timerDiv.id = `timer-${div.dataset.id}`;
+            timerDiv.id = `timer-${btoa(image.src).slice(0, 10)}`;
             timerDiv.setAttribute('aria-live', 'polite');
             div.appendChild(img);
             div.appendChild(descDiv);
@@ -303,7 +304,7 @@
         }
 
         function startCountdown(photoDiv, mode) {
-            const id = photoDiv.dataset.id;
+            const id = btoa(photoDiv.querySelector('img').src).slice(0, 10);
             if (timers.size > 0) {
                 showNotification('Please wait for the current countdown to finish!');
                 return;
@@ -355,6 +356,7 @@
                 newMusicDiv.innerHTML = `<span class="music-symbol">♫</span> - ${newImage.music.song} - ${newImage.music.singer}`;
                 photoDiv.appendChild(newMusicDiv);
             }
+            photoDiv.dataset.sessionId = newImage.sessionId || 'Unknown';
             if (mode === 'one') {
                 currentImageIndex = images.findIndex(img => img.src === newImage.src);
             }
@@ -370,7 +372,7 @@
 
             if (mode === 'four' && timers.size > 0) {
                 activeId = [...timers.keys()][0];
-                activePhotoDiv = document.querySelector(`[data-id="${activeId}"]`);
+                activePhotoDiv = document.querySelector(`[data-sessionId="${activeId}"]`);
             } else {
                 timers.forEach(timer => clearInterval(timer));
                 timers.clear();
@@ -392,10 +394,10 @@
                         tempContainer.appendChild(activePhotoDiv);
                         continue;
                     }
-                    const image = randomImages[i - (activePhotoDiv ? 1 : 0)] || { src: 'https://via.placeholder.com/900x1600', desc: 'No image available', tags: ['', '', ''], music: null };
+                    const image = randomImages[i - (activePhotoDiv ? 1 : 0)] || { src: 'https://via.placeholder.com/900x1600', desc: 'No image available', tags: ['', '', ''], music: null, sessionId: 'Unknown' };
                     const photoDiv = createPhotoElement(image, i);
                     photoDiv.querySelector('img').addEventListener('click', () => {
-                        showSessionPopup(photoDiv.dataset.id);
+                        showSessionPopup(photoDiv.dataset.sessionId);
                         startCountdown(photoDiv, 'four');
                     });
                     tempContainer.appendChild(photoDiv);
@@ -405,9 +407,9 @@
                 photoContainer.classList.remove('grid-cols-2', 'sm:grid-cols-2', 'lg:grid-cols-4');
                 photoContainer.classList.add('grid-cols-1');
                 navButtons.classList.remove('hidden');
-                const div = createPhotoElement(images[currentImageIndex] || { src: 'https://via.placeholder.com/900x1600', desc: 'No image available', tags: ['', '', ''], music: null }, 0);
+                const div = createPhotoElement(images[currentImageIndex] || { src: 'https://via.placeholder.com/900x1600', desc: 'No image available', tags: ['', '', ''], music: null, sessionId: 'Unknown' }, 0);
                 div.querySelector('img').addEventListener('click', () => {
-                    showSessionPopup(div.dataset.id);
+                    showSessionPopup(div.dataset.sessionId);
                     startCountdown(div, 'one');
                 });
                 photoContainer.appendChild(div);
