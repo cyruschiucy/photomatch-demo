@@ -147,98 +147,26 @@
         <div id="pullToRefresh" class="pull-to-refresh">Pull to refresh</div>
     </div>
 
-    <script>
-        const images = [
-            {
-                src: 'https://i.imgur.com/rKcDCZ2.jpeg',
-                desc: '30+ 認真拍長拖 想結婚 唔生仔 先好搵',
-                tags: ['走人地', '外協', '肉地'],
-                music: { song: '佛道說', singer: 'Novel Fergus' }
-            },
-            {
-                src: 'https://i.imgur.com/vUPPe5G.jpeg',
-                desc: '有肌肉ge 男仔好吸引 90後',
-                tags: ['', '', '']
-            },
-            {
-                src: 'https://i.imgur.com/rANKGoB.jpeg',
-                desc: '心事台 傾下計',
-                tags: ['156cm', '走甜', '走人地走spfwb'],
-                music: { song: 'Perfect', singer: 'Ed Sheeran' }
-            },
-            {
-                src: 'https://i.imgur.com/TjWJr2G.jpeg',
-                desc: '搵02 金牛座 走甜走人地',
-                tags: ['正常人搵正常人', '', '']
-            },
-            {
-                src: 'https://i.imgur.com/KZRyqYc.jpeg',
-                desc: '25 ugrad 正常人 pleaseeeeeee',
-                tags: ['', '', '']
-            },
-            {
-                src: 'https://i.imgur.com/m1KBN1X.jpeg',
-                desc: '有冇可以陪我一齊on9 ge人',
-                tags: ['ugrad', '唔約', ''],
-                music: { song: '說謊者', singer: '張天賦' }
-            },
-            {
-                src: 'https://i.imgur.com/vqTIok6.jpeg',
-                desc: '唔伏外協 可愛',
-                tags: ['認真', '走人地', '痴身']
-            },
-            {
-                src: 'https://i.imgur.com/y1QdGpM.jpeg',
-                desc: '28 185 自住 車巴 專業 即出',
-                tags: ['enfj', '天秤', '人地'],
-                music: { song: 'Viva la Vida', singer: 'Coldplay' }
-            },
-            {
-                src: 'https://i.imgur.com/Nh8I98h.jpeg',
-                desc: '病到傻西',
-                tags: ['00後', '少外協', ''],
-                music: { song: '一人之境', singer: '林家謙' }
-            },
-            {
-                src: 'https://i.imgur.com/Jr3XCZJ.jpeg',
-                desc: 'vibe tells no lie',
-                tags: ['', '', '']
-            },
-            {
-                src: 'https://i.imgur.com/iEzagAB.jpeg',
-                desc: '訓唔著 傾兩句 或者出黎車河',
-                tags: ['80後', '紀', 'gym'],
-                music: { song: '黑玻璃', singer: '洪嘉豪' }
-            },
-            {
-                src: 'https://i.imgur.com/zxdF7wO.jpeg',
-                desc: '99 認真 許願一個錫我 痴身男友 走煙草 不良試好 有冇真人靚仔ge人',
-                tags: ['走人地', '', '']
-            },
-            {
-                src: 'https://i.imgur.com/FpkSFnR.jpeg',
-                desc: '想聽你故仔 做樹窿一晚 90後',
-                tags: ['', '', '']
-            },
-            {
-                src: 'https://i.imgur.com/9pu7MQw.jpeg',
-                desc: '即出 上黎我屋企撚貓',
-                tags: ['自住', '隨緣', '單身'],
-                music: { song: 'New Drug', singer: '落日飛車' }
-            },
-            {
-                src: 'https://i.imgur.com/P5hfn8m.jpeg',
-                desc: '30+ 認真拍長拖 想結婚 唔生仔 先好搵',
-                tags: ['走人地', '外協', '肉地'],
-                music: { song: '佛道說', singer: 'Novel Fergus' }
-            },
-            {
-                src: 'https://i.imgur.com/rKcDCZ2.jpeg',
-                desc: '傾咩都可以 純傾唔約 唔換相 唔轉app',
-                tags: ['非經常上線', '90後', '']
-            }
-        ];
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 
+    <script>
+        // Initialize Firebase (replace with your Firebase config)
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyCuDzchHx0AhrDzmnNjQ6f0YpwKhPpUqo0",
+  authDomain: "photomatch-demo.firebaseapp.com",
+  projectId: "photomatch-demo",
+  storageBucket: "photomatch-demo.firebasestorage.app",
+  messagingSenderId: "138957187291",
+  appId: "1:138957187291:web:8717b276b2d24a121344fe",
+  measurementId: "G-E4C40CW3N3"
+};
+        const app = firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        let images = [];
         const displayModeSelect = document.getElementById('displayMode');
         const descPositionSelect = document.getElementById('descPosition');
         const photoContainer = document.getElementById('photoContainer');
@@ -250,6 +178,21 @@
         let scrollTimeout = null;
         let lastScrollY = window.scrollY;
         let bottomReached = false;
+
+        // Fetch photos from Firestore
+        function fetchPhotos() {
+            db.collection('photos')
+                .orderBy('timestamp', 'asc')
+                .onSnapshot(snapshot => {
+                    images = [];
+                    snapshot.forEach(doc => {
+                        images.push(doc.data());
+                    });
+                    updateDisplay();
+                }, error => {
+                    console.error('Error fetching photos:', error);
+                });
+        }
 
         function showNotification(message) {
             const notification = document.createElement('div');
@@ -467,7 +410,8 @@
             updateDisplay();
         });
 
-        updateDisplay();
+        // Initial fetch of photos
+        fetchPhotos();
     </script>
 </body>
 </html>
