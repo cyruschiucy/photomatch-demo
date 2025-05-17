@@ -289,6 +289,24 @@
             }, 2000);
         }
 
+        // Get description for a user’s session ID
+        async function getUserDescription(sessionId) {
+            try {
+                const querySnapshot = await db.collection('photos')
+                    .where('sessionId', '==', sessionId)
+                    .orderBy('timestamp', 'desc')
+                    .limit(1)
+                    .get();
+                if (!querySnapshot.empty) {
+                    return querySnapshot.docs[0].data().desc || 'Someone';
+                }
+                return 'Someone';
+            } catch (error) {
+                console.error('Error fetching user description:', error);
+                return 'Someone';
+            }
+        }
+
         // Listen for click notifications
         function listenForNotifications() {
             try {
@@ -403,11 +421,8 @@
             const availableImages = images.filter(img => img.src !== photoDiv.querySelector('img').src);
             const newImage = getRandomItems(availableImages, 1)[0];
             const img = photoDiv.querySelector('img');
-            const descDiv = photoDiv.querySelector('.desc-box');
-            const musicDiv = photoDiv.querySelector('.music-tag');
-            img.src = newImage.src || 'https://via.placeholder.com/900x1600';
-            img.alt = newImage.desc || 'No description';
-            descDiv.innerHTML = '';
+            const descDiv = document.createElement('div');
+            descDiv.className = `desc-box ${descPositionSelect.value === 'middle' ? 'desc-middle' : 'desc-bottom'}`;
             const descText = document.createElement('div');
             descText.textContent = newImage.desc || 'No description available';
             descDiv.appendChild(descText);
@@ -418,7 +433,12 @@
                 tagsSpan.textContent = `#${validTags.join(' #')}`;
                 descDiv.appendChild(tagsSpan);
             }
-            descDiv.className = `desc-box ${descPositionSelect.value === 'middle' ? 'desc-middle' : 'desc-bottom'}`;
+            const oldDescDiv = photoDiv.querySelector('.desc-box');
+            if (oldDescDiv) oldDescDiv.remove();
+            photoDiv.insertBefore(descDiv, photoDiv.querySelector('.timer-circle'));
+            const musicDiv = photoDiv.querySelector('.music-tag');
+            img.src = newImage.src || 'https://via.placeholder.com/900x1600';
+            img.alt = newImage.desc || 'No description';
             if (musicDiv) musicDiv.remove();
             if (newImage.music) {
                 const newMusicDiv = document.createElement('div');
@@ -432,7 +452,7 @@
             }
         }
 
-        function updateDisplay() {
+        async function updateDisplay() {
             const mode = displayModeSelect.value;
             let activePhotoDiv = null;
             let activeId = null;
@@ -469,11 +489,12 @@
                     }
                     const image = randomImages[i - (activePhotoDiv ? 1 : 0)] || { src: 'https://via.placeholder.com/900x1600', desc: 'No image available', tags: ['', '', ''], music: null, sessionId: 'Unknown' };
                     const photoDiv = createPhotoElement(image, i);
-                    photoDiv.querySelector('img').addEventListener('click', () => {
+                    photoDiv.querySelector('img').addEventListener('click', async () => {
                         showSessionPopup(photoDiv.dataset.sessionId);
+                        const clickerDescription = await getUserDescription(currentSessionId);
                         db.collection('click_notifications').add({
                             targetSessionId: photoDiv.dataset.sessionId,
-                            description: image.desc || 'Someone',
+                            description: clickerDescription,
                             timestamp: firebase.firestore.FieldValue.serverTimestamp()
                         }).catch(error => {
                             console.error('Error sending notification:', error);
@@ -489,11 +510,12 @@
                 photoContainer.classList.add('grid-cols-1');
                 navButtons.classList.remove('hidden');
                 const div = createPhotoElement(images[currentImageIndex] || { src: 'https://via.placeholder.com/900x1600', desc: 'No image available', tags: ['', '', ''], music: null, sessionId: 'Unknown' }, 0);
-                div.querySelector('img').addEventListener('click', () => {
+                div.querySelector('img').addEventListener('click', async () => {
                     showSessionPopup(div.dataset.sessionId);
+                    const clickerDescription = await getUserDescription(currentSessionId);
                     db.collection('click_notifications').add({
                         targetSessionId: div.dataset.sessionId,
-                        description: images[currentImageIndex].desc || 'Someone',
+                        description: clickerDescription,
                         timestamp: firebase.firestore.FieldValue.serverTimestamp()
                     }).catch(error => {
                         console.error('Error sending notification:', error);
