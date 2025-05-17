@@ -84,8 +84,15 @@
             object-fit: cover;
             border-radius: 0.25rem;
             margin-bottom: 0.5rem;
+            position: relative;
+        }
+        .notification .desc-box {
+            position: absolute;
+            left: 0;
+            right: 0;
         }
         .notification .message {
+            margin-top: 0.5rem;
             margin-bottom: 0.5rem;
         }
         .notification .timer {
@@ -279,19 +286,35 @@
                 });
         }
 
-        // Show notification with photo, description, countdown, and confirm button
-        function showNotification(photoSrc, description, duration = 15000) {
+        // Show notification with photo, description, tags, countdown, and confirm button
+        function showNotification(photoSrc, description, tags, clickerSessionId, targetSessionId, messageOverride = null, duration = 15000) {
             const notification = document.createElement('div');
             notification.className = 'notification';
+            const imgContainer = document.createElement('div');
+            imgContainer.className = 'relative';
             const img = document.createElement('img');
             img.src = photoSrc || 'https://via.placeholder.com/900x1600';
             img.alt = 'User photo';
             img.onerror = () => {
                 img.src = 'https://via.placeholder.com/900x1600?text=Image+Failed';
             };
+            const descDiv = document.createElement('div');
+            descDiv.className = `desc-box ${descPositionSelect.value === 'middle' ? 'desc-middle' : 'desc-bottom'}`;
+            const descText = document.createElement('div');
+            descText.textContent = description || 'No description available';
+            descDiv.appendChild(descText);
+            const validTags = (tags || ['', '', '']).filter(tag => tag.trim() !== '');
+            if (validTags.length > 0) {
+                const tagsSpan = document.createElement('span');
+                tagsSpan.className = 'tags';
+                tagsSpan.textContent = `#${validTags.join(' #')}`;
+                descDiv.appendChild(tagsSpan);
+            }
+            imgContainer.appendChild(img);
+            imgContainer.appendChild(descDiv);
             const messageDiv = document.createElement('div');
             messageDiv.className = 'message';
-            messageDiv.textContent = `${description || 'Someone'} wants to chat with you`;
+            messageDiv.textContent = messageOverride || 'above user wants to chat with you';
             const timerDiv = document.createElement('div');
             timerDiv.className = 'timer';
             let timeLeft = Math.floor(duration / 1000);
@@ -300,14 +323,40 @@
             confirmBtn.className = 'confirm-btn';
             confirmBtn.textContent = 'Confirm';
             confirmBtn.setAttribute('aria-label', 'Confirm chat request');
-            confirmBtn.onclick = () => {
-                console.log(`Confirm button clicked for ${description} (session ID: ${currentSessionId})`);
+            confirmBtn.onclick = async () => {
+                if (!clickerSessionId || !targetSessionId) {
+                    console.error('Missing session IDs for chat confirmation');
+                    showNotification(null, null, null, null, null, 'Failed to confirm chat. Please try again.');
+                    notification.remove();
+                    return;
+                }
+                try {
+                    // Get target user's description
+                    const targetInfo = await getUserInfo(targetSessionId);
+                    // Create chat confirmation
+                    await db.collection('chat_confirmations').add({
+                        clickerSessionId,
+                        targetSessionId,
+                        clickerDesc: description,
+                        targetDesc: targetInfo.desc,
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    // Redirect current user (target) to chat.html
+                    window.location.href = `chat.html?desc=${encodeURIComponent(description)}`;
+                } catch (error) {
+                    console.error('Error confirming chat:', error);
+                    showNotification(null, null, null, null, null, 'Failed to confirm chat. Please try again.');
+                }
                 notification.remove();
             };
-            notification.appendChild(img);
-            notification.appendChild(messageDiv);
-            notification.appendChild(timerDiv);
-            notification.appendChild(confirmBtn);
+            if (!messageOverride) {
+                notification.appendChild(imgContainer);
+                notification.appendChild(messageDiv);
+                notification.appendChild(timerDiv);
+                notification.appendChild(confirmBtn);
+            } else {
+                notification.appendChild(messageDiv);
+            }
             notification.setAttribute('role', 'alert');
             document.body.appendChild(notification);
 
@@ -338,7 +387,7 @@
             }, 2000);
         }
 
-        // Get user’s photo and description
+        // Get user’s photo, description, and tags
         async function getUserInfo(sessionId) {
             try {
                 const querySnapshot = await db.collection('photos')
@@ -350,18 +399,21 @@
                     const data = querySnapshot.docs[0].data();
                     return {
                         src: data.src || 'https://via.placeholder.com/900x1600',
-                        desc: data.desc || 'Someone'
+                        desc: data.desc || 'Someone',
+                        tags: data.tags || ['', '', '']
                     };
                 }
                 return {
                     src: 'https://via.placeholder.com/900x1600',
-                    desc: 'Someone'
+                    desc: 'Someone',
+                    tags: ['', '', '']
                 };
             } catch (error) {
                 console.error('Error fetching user info:', error);
                 return {
                     src: 'https://via.placeholder.com/900x1600',
-                    desc: 'Someone'
+                    desc: 'Someone',
+                    tags: ['', '', '']
                 };
             }
         }
@@ -376,7 +428,13 @@
                         snapshot.docChanges().forEach(change => {
                             if (change.type === 'added') {
                                 const data = change.doc.data();
-                                showNotification(data.photoSrc, data.description);
+                                showNotification(
+                                    data.photoSrc,
+                                    data.description,
+                                    data.tags,
+                                    data.clickerSessionId,
+                                    data.targetSessionId
+                                );
                                 // Delete the notification after processing
                                 db.collection('click_notifications').doc(change.doc.id).delete();
                             }
@@ -384,14 +442,49 @@
                     }, error => {
                         console.error('Error listening for notifications:', error);
                         if (error.code === 'failed-precondition' && error.message.includes('requires an index')) {
-                            showNotification(null, 'Notification system is temporarily unavailable. Please try again later.');
+                            showNotification(null, null, null, null, null, 'Notification system is temporarily unavailable. Please create the required index in Firestore.');
+                        } else if (error.code === 'permission-denied') {
+                            showNotification(null, null, null, null, null, 'Permission denied. Please check Firestore security rules.');
                         } else {
-                            showNotification(null, 'Error receiving notifications. Please refresh the page.');
+                            showNotification(null, null, null, null, null, 'Error receiving notifications. Please refresh the page.');
                         }
                     });
             } catch (error) {
                 console.error('Unexpected error in listenForNotifications:', error);
-                showNotification(null, 'Error setting up notifications. Please refresh the page.');
+                showNotification(null, null, null, null, null, 'Error setting up notifications. Please refresh the page.');
+            }
+        }
+
+        // Listen for chat confirmations
+        function listenForChatConfirmations() {
+            try {
+                db.collection('chat_confirmations')
+                    .where('clickerSessionId', '==', currentSessionId)
+                    .where('timestamp', '>=', new Date(Date.now() - 60000))
+                    .onSnapshot(snapshot => {
+                        snapshot.docChanges().forEach(change => {
+                            if (change.type === 'added') {
+                                const data = change.doc.data();
+                                // Redirect clicker to chat.html with target's description
+                                window.location.href = `chat.html?desc=${encodeURIComponent(data.targetDesc)}`;
+                                // Delete the confirmation after processing
+                                db.collection('chat_confirmations').doc(change.doc.id).delete();
+                            }
+                        });
+                    }, error => {
+                        console.error('Error listening for chat confirmations:', error, error.stack);
+                        if (error.code === 'failed-precondition' && error.message.includes('requires an index')) {
+                            showNotification(null, null, null, null, null, 'Chat system is temporarily unavailable. Please create the required index in Firestore.');
+                            console.log('Please create a composite index for chat_confirmations with fields: clickerSessionId (Ascending), timestamp (Ascending). Check the Firebase console or the error message for a direct link.');
+                        } else if (error.code === 'permission-denied') {
+                            showNotification(null, null, null, null, null, 'Permission denied for chat confirmations. Please check Firestore security rules.');
+                        } else {
+                            showNotification(null, null, null, null, null, 'Error setting up chat system. Please refresh the page.');
+                        }
+                    });
+            } catch (error) {
+                console.error('Unexpected error in listenForChatConfirmations:', error, error.stack);
+                showNotification(null, null, null, null, null, 'Error setting up chat system. Please refresh the page.');
             }
         }
 
@@ -452,7 +545,7 @@
         function startCountdown(photoDiv, mode) {
             const id = btoa(photoDiv.querySelector('img').src).slice(0, 10);
             if (timers.size > 0) {
-                showNotification(null, 'Please wait for the current countdown to finish!');
+                showNotification(null, null, null, null, null, 'Please wait for the current countdown to finish!');
                 return;
             }
 
@@ -501,7 +594,7 @@
             if (newImage.music) {
                 const newMusicDiv = document.createElement('div');
                 newMusicDiv.className = 'music-tag';
-                newMusicDiv.innerHTML = `<span class="music-symbol">♫</span> - ${newImage.music.song} - ${image.music.singer}`;
+                newMusicDiv.innerHTML = `<span class="music-symbol">♫</span> - ${newImage.music.song} - ${newImage.music.singer}`;
                 photoDiv.appendChild(newMusicDiv);
             }
             photoDiv.dataset.sessionId = newImage.sessionId || 'Unknown';
@@ -552,12 +645,14 @@
                         const userInfo = await getUserInfo(currentSessionId);
                         db.collection('click_notifications').add({
                             targetSessionId: photoDiv.dataset.sessionId,
+                            clickerSessionId: currentSessionId,
                             photoSrc: userInfo.src,
                             description: userInfo.desc,
+                            tags: userInfo.tags,
                             timestamp: firebase.firestore.FieldValue.serverTimestamp()
                         }).catch(error => {
                             console.error('Error sending notification:', error);
-                            showNotification(null, 'Failed to send notification. Please try again.');
+                            showNotification(null, null, null, null, null, 'Failed to send notification. Please try again.');
                         });
                         startCountdown(photoDiv, 'four');
                     });
@@ -574,12 +669,14 @@
                     const userInfo = await getUserInfo(currentSessionId);
                     db.collection('click_notifications').add({
                         targetSessionId: div.dataset.sessionId,
+                        clickerSessionId: currentSessionId,
                         photoSrc: userInfo.src,
                         description: userInfo.desc,
+                        tags: userInfo.tags,
                         timestamp: firebase.firestore.FieldValue.serverTimestamp()
                     }).catch(error => {
                         console.error('Error sending notification:', error);
-                        showNotification(null, 'Failed to send notification. Please try again.');
+                        showNotification(null, null, null, null, null, 'Failed to send notification. Please try again.');
                     });
                     startCountdown(div, 'one');
                 });
@@ -635,9 +732,10 @@
             updateDisplay();
         });
 
-        // Initial fetch of photos and start notification listener
+        // Initial fetch of photos and start listeners
         fetchPhotos();
         listenForNotifications();
+        listenForChatConfirmations();
     </script>
 </body>
 </html>
