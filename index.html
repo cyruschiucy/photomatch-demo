@@ -70,10 +70,15 @@
             transform: translateX(-50%);
             background-color: #ef4444;
             color: white;
-            padding: 1rem 2rem;
+            padding: 1.5rem;
             border-radius: 0.5rem;
             z-index: 50;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        .notification .timer {
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
         }
         .session-popup {
             position: fixed;
@@ -126,6 +131,13 @@
             .session-popup {
                 font-size: 0.875rem;
                 padding: 0.8rem 1.5rem;
+            }
+            .notification {
+                font-size: 0.875rem;
+                padding: 1rem 1.5rem;
+            }
+            .notification .timer {
+                font-size: 0.75rem;
             }
         }
     </style>
@@ -235,16 +247,34 @@
                 });
         }
 
-        // Show notification
-        function showNotification(message) {
+        // Show notification with countdown
+        function showNotification(message, duration = 15000) {
             const notification = document.createElement('div');
             notification.className = 'notification';
-            notification.textContent = message;
+            const messageDiv = document.createElement('div');
+            messageDiv.textContent = message;
+            const timerDiv = document.createElement('div');
+            timerDiv.className = 'timer';
+            let timeLeft = Math.floor(duration / 1000);
+            timerDiv.textContent = `Time remaining: ${timeLeft}s`;
+            notification.appendChild(messageDiv);
+            notification.appendChild(timerDiv);
             notification.setAttribute('role', 'alert');
             document.body.appendChild(notification);
+
+            const countdown = setInterval(() => {
+                timeLeft--;
+                timerDiv.textContent = `Time remaining: ${timeLeft}s`;
+                if (timeLeft <= 0) {
+                    clearInterval(countdown);
+                    notification.remove();
+                }
+            }, 1000);
+
             setTimeout(() => {
+                clearInterval(countdown);
                 notification.remove();
-            }, 2000);
+            }, duration);
         }
 
         // Show session ID popup
@@ -268,7 +298,9 @@
                     .onSnapshot(snapshot => {
                         snapshot.docChanges().forEach(change => {
                             if (change.type === 'added') {
-                                showNotification('Someone clicked your photo!');
+                                const data = change.doc.data();
+                                const description = data.description || 'Someone';
+                                showNotification(`${description} wants to chat with you`);
                                 // Delete the notification after processing
                                 db.collection('click_notifications').doc(change.doc.id).delete();
                             }
@@ -441,6 +473,7 @@
                         showSessionPopup(photoDiv.dataset.sessionId);
                         db.collection('click_notifications').add({
                             targetSessionId: photoDiv.dataset.sessionId,
+                            description: image.desc || 'Someone',
                             timestamp: firebase.firestore.FieldValue.serverTimestamp()
                         }).catch(error => {
                             console.error('Error sending notification:', error);
@@ -460,6 +493,7 @@
                     showSessionPopup(div.dataset.sessionId);
                     db.collection('click_notifications').add({
                         targetSessionId: div.dataset.sessionId,
+                        description: images[currentImageIndex].desc || 'Someone',
                         timestamp: firebase.firestore.FieldValue.serverTimestamp()
                     }).catch(error => {
                         console.error('Error sending notification:', error);
