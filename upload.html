@@ -237,60 +237,60 @@
             errorMessage.style.display = 'none';
 
             try {
-                // Debug: Log the proxy URL
-                const proxyUrl = '/api/n8n-webhook';
-                console.log('Sending request to proxy:', proxyUrl);
+                // Debug: Log the webhook URL
+                const webhookUrl = 'https://missingface.app.n8n.cloud/webhook/6de446b5-0b18-4fb4-ba2d-f1ddbe41a179';
+                console.log('Sending request to n8n webhook:', webhookUrl);
 
-                // Upload to Vercel proxy for n8n webhook
+                // Upload to n8n webhook for analysis with timeout
                 const formData = new FormData();
                 formData.append('file', file);
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 10000); // 10-second timeout
-                let proxyResponse;
+                let n8nResponse;
                 try {
-                    proxyResponse = await fetch(proxyUrl, {
+                    n8nResponse = await fetch(webhookUrl, {
                         method: 'POST',
                         body: formData,
                         signal: controller.signal
                     });
                 } catch (fetchError) {
                     if (fetchError.name === 'AbortError') {
-                        console.error('Proxy request timed out after 10 seconds');
-                        throw new Error('Request to proxy timed out');
+                        console.error('n8n request timed out after 10 seconds');
+                        throw new Error('Request to n8n timed out');
                     }
-                    console.error('Proxy fetch error:', fetchError.message);
-                    throw new Error('Failed to connect to proxy');
+                    console.error('n8n fetch error:', fetchError.message);
+                    throw new Error('Failed to connect to n8n: Possible CORS issue or server error');
                 } finally {
                     clearTimeout(timeoutId);
                 }
 
                 // Debug: Log response status and headers
-                console.log('Proxy Response Status:', proxyResponse.status, proxyResponse.statusText);
-                console.log('Proxy Response Headers:', Object.fromEntries(proxyResponse.headers.entries()));
+                console.log('n8n Response Status:', n8nResponse.status, n8nResponse.statusText);
+                console.log('n8n Response Headers:', Object.fromEntries(n8nResponse.headers.entries()));
 
                 // Debug: Log raw response body as text
-                const responseText = await proxyResponse.text();
-                console.log('Proxy Raw Response Body:', responseText);
+                const responseText = await n8nResponse.text();
+                console.log('n8n Raw Response Body:', responseText);
 
                 // Attempt to parse JSON
                 let analysisResult;
                 try {
                     if (!responseText) {
-                        console.error('Proxy response is empty');
-                        throw new Error('Empty response from proxy');
+                        console.error('n8n response is empty');
+                        throw new Error('Empty response from n8n');
                     }
                     const parsed = JSON.parse(responseText);
                     // Handle array response by taking the first object
                     analysisResult = Array.isArray(parsed) ? parsed[0] : parsed;
-                    console.log('Proxy Parsed JSON Response:', analysisResult);
+                    console.log('n8n Parsed JSON Response:', analysisResult);
                 } catch (jsonError) {
-                    console.error('Failed to parse proxy response as JSON:', jsonError.message);
-                    throw new Error(`Invalid response from proxy: ${jsonError.message}`);
+                    console.error('Failed to parse n8n response as JSON:', jsonError.message);
+                    throw new Error(`Invalid response from n8n: ${jsonError.message}`);
                 }
 
-                if (!proxyResponse.ok) {
-                    console.error('Proxy request failed with status:', proxyResponse.status, 'Error:', analysisResult.error || 'Unknown error');
-                    throw new Error(`Failed to analyze image: ${analysisResult.error || 'Unknown error'}`);
+                if (!n8nResponse.ok) {
+                    console.error('n8n request failed with status:', n8nResponse.status, 'Error:', analysisResult.error || 'Unknown error');
+                    throw new Error(`Failed to analyze image with n8n: ${analysisResult.error || 'Unknown error'}`);
                 }
 
                 if (!analysisResult.isAllowed) {
