@@ -49,6 +49,12 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        .error-message {
+            color: #ef4444;
+            font-size: 0.875rem;
+            margin-bottom: 0.5rem;
+            display: none;
+        }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -70,6 +76,7 @@
                 <input type="file" id="photoInput" accept="image/*" class="mt-1 block w-full p-2 border rounded-lg">
             </div>
             <div class="mb-4">
+                <div id="errorMessage" class="error-message"></div>
                 <label for="description" class="block text-sm font-medium text-gray-700">Description</label>
                 <textarea id="description" class="mt-1 block w-full p-2 border rounded-lg" rows="3" placeholder="Enter description"></textarea>
             </div>
@@ -140,6 +147,7 @@
         const uploadForm = document.getElementById('uploadForm');
         const photoInput = document.getElementById('photoInput');
         const description = document.getElementById('description');
+        const errorMessage = document.getElementById('errorMessage');
         const tag1 = document.getElementById('tag1');
         const tag2 = document.getElementById('tag2');
         const tag3 = document.getElementById('tag3');
@@ -155,7 +163,7 @@
 
         sessionInfo.textContent = `Your Session ID: ${currentSessionId}`;
 
-        // Show notification
+        // Show notification (for non-blocked errors)
         function showNotification(message) {
             const notification = document.createElement('div');
             notification.className = 'notification';
@@ -224,6 +232,9 @@
             ].concat(Array(3 - Math.min(3, [tag1.value.trim(), tag2.value.trim(), tag3.value.trim()].filter(t => t).length)).fill(''));
 
             toggleLoading(true);
+            // Clear error message at the start of upload
+            errorMessage.textContent = '';
+            errorMessage.style.display = 'none';
 
             try {
                 // Debug: Log the webhook URL
@@ -235,12 +246,23 @@
                 formData.append('file', file);
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 10000); // 10-second timeout
-                const n8nResponse = await fetch(webhookUrl, {
-                    method: 'POST',
-                    body: formData,
-                    signal: controller.signal
-                });
-                clearTimeout(timeoutId);
+                let n8nResponse;
+                try {
+                    n8nResponse = await fetch(webhookUrl, {
+                        method: 'POST',
+                        body: formData,
+                        signal: controller.signal
+                    });
+                } catch (fetchError) {
+                    if (fetchError.name === 'AbortError') {
+                        console.error('n8n request timed out after 10 seconds');
+                        throw new Error('Request to n8n timed out');
+                    }
+                    console.error('n8n fetch error:', fetchError.message);
+                    throw new Error('Failed to connect to n8n: Possible CORS issue or server error');
+                } finally {
+                    clearTimeout(timeoutId);
+                }
 
                 // Debug: Log response status and headers
                 console.log('n8n Response Status:', n8nResponse.status, n8nResponse.statusText);
@@ -273,7 +295,9 @@
 
                 if (!analysisResult.isAllowed) {
                     console.log('Upload blocked by n8n:', analysisResult);
-                    showNotification('Upload blocked: Image contains a human face or inappropriate content.');
+                    // Display error message above Description in red
+                    errorMessage.textContent = 'Upload blocked: Image contains a human face or inappropriate content.';
+                    errorMessage.style.display = 'block';
                     return;
                 }
 
