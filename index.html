@@ -260,7 +260,7 @@
             const app = firebase.initializeApp(firebaseConfig);
             const auth = firebase.auth();
             const db = firebase.firestore();
-            const placeholderImage = 'https://firebasestorage.googleapis.com/v0/b/photomatch-demo.firebasestorage.app/o/photos%2Fplaceholder.jpg?alt=media&token=342ac66c-eb2d-4b60-9b8a-90bdf1231ec0'; // Replace with your Firebase Storage URL
+            const placeholderImage = 'https://firebasestorage.googleapis.com/v0/b/photomatch-demo.firebasestorage.app/o/photos%2Fplaceholder.jpg?alt=media&token=342ac66c-eb2d-4b60-9b8a-90bdf1231ec0';
 
             let images = [];
             const displayModeSelect = document.getElementById('displayMode');
@@ -436,14 +436,26 @@
                     }
                     try {
                         const targetInfo = await getUserInfo(targetUserId);
+                        // Create a chat document
+                        const chatData = {
+                            participants: [clickerUserId, targetUserId],
+                            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                            lastMessage: '',
+                            lastMessageAt: null
+                        };
+                        const chatRef = await db.collection('chats').add(chatData);
+                        const chatId = chatRef.id;
+                        // Store confirmation with chatId
                         await db.collection('chat_confirmations').add({
                             clickerUserId,
                             targetUserId,
                             clickerDesc: description,
                             targetDesc: targetInfo.desc,
+                            chatId,
                             timestamp: firebase.firestore.FieldValue.serverTimestamp()
                         });
-                        window.location.href = `chat.html?desc=${encodeURIComponent(description)}`;
+                        // Redirect to chat
+                        window.location.href = `chat.html?chatId=${chatId}&otherUserId=${clickerUserId}&desc=${encodeURIComponent(description)}`;
                     } catch (error) {
                         console.error('Error confirming chat:', error);
                         showNotification(null, null, null, null, null, 'Failed to confirm chat. Please try again.');
@@ -563,7 +575,12 @@
                             snapshot.docChanges().forEach(change => {
                                 if (change.type === 'added') {
                                     const data = change.doc.data();
-                                    window.location.href = `chat.html?desc=${encodeURIComponent(data.targetDesc)}`;
+                                    const params = new URLSearchParams({
+                                        chatId: data.chatId || '',
+                                        otherUserId: data.targetUserId,
+                                        desc: encodeURIComponent(data.targetDesc)
+                                    });
+                                    window.location.href = `chat.html?${params.toString()}`;
                                     db.collection('chat_confirmations').doc(change.doc.id).delete();
                                 }
                             });
