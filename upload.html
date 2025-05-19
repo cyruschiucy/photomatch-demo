@@ -55,15 +55,43 @@
             margin-bottom: 0.5rem;
             display: none;
         }
+        .nav-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-color: #f9f9f9;
+            display: flex;
+            justify-content: space-around;
+            padding: 0.5rem 0;
+            box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.1);
+            z-index: 100;
+        }
+        .nav-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            font-size: 0.75rem;
+            color: #6b7280;
+            text-decoration: none;
+        }
+        .nav-btn.active {
+            color: #ec4899;
+        }
+        .nav-btn span {
+            margin-top: 0.25rem;
+        }
+        @media (min-width: 641px) {
+            .nav-btn { font-size: 0.875rem; }
+            .nav-btn span { margin-top: 0.375rem; }
+        }
     </style>
 </head>
-<body class="bg-gray-100">
-    <div class="container mx-auto p-6">
+<body class="bg-gray-100 flex flex-col min-h-screen">
+    <div class="container mx-auto p-6 flex-1">
         <h1 class="text-2xl font-bold mb-6 text-center">Upload a Photo</h1>
         
-        <!-- Back to Index Button -->
-        <a href="index.html" class="mb-6 inline-block bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">Back to Photos</a>
-
         <!-- User Info -->
         <div class="mb-6 text-center">
             <p id="userInfo" class="text-lg font-medium"></p>
@@ -122,6 +150,26 @@
         </div>
     </div>
 
+    <!-- Navigation Bar -->
+    <div class="nav-bar">
+        <a href="index.html" id="navExplore" class="nav-btn active">
+            <span>🧭</span>
+            <span>Explore</span>
+        </a>
+        <a href="upload.html" id="navProfile" class="nav-btn">
+            <span>👤</span>
+            <span>My Profile</span>
+        </a>
+        <a href="chatlist.html" id="navChat" class="nav-btn">
+            <span>💬</span>
+            <span>Chat</span>
+        </a>
+        <a href="#" id="navSettings" class="nav-btn">
+            <span>⚙</span>
+            <span>Settings</span>
+        </a>
+    </div>
+
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -149,12 +197,12 @@
             const auth = firebase.auth();
             const storage = firebase.storage();
             const db = firebase.firestore();
-            const placeholderImage = 'https://firebasestorage.googleapis.com/v0/b/photomatch-demo.firebasestorage.app/o/photos%2Fplaceholder.jpg?alt=media&token=342ac66c-eb2d-4b60-9b8a-90bdf1231ec0'; // Replace with your Firebase Storage URL
+            const placeholderImage = 'https://firebasestorage.googleapis.com/v0/b/photomatch-demo.firebasestorage.app/o/photos%2Fplaceholder.jpg?alt=media&token=342ac66c-eb2d-4b60-9b8a-90bdf1231ec0';
 
             let currentPhotoDocId = null;
             let currentUser = null;
             let currentPhotoUrl = null;
-            const BYPASS_N8N = false; // Set to true for testing to bypass n8n validation
+            const BYPASS_N8N = false;
 
             const userInfo = document.getElementById('userInfo');
             const uploadForm = document.getElementById('uploadForm');
@@ -174,19 +222,25 @@
             const currentTag3 = document.getElementById('currentTag3');
             const updateButton = document.getElementById('updateButton');
             const loadingOverlay = document.getElementById('loadingOverlay');
+            const navExplore = document.getElementById('navExplore');
+            const navProfile = document.getElementById('navProfile');
+            const navChat = document.getElementById('navChat');
+            const navSettings = document.getElementById('navSettings');
 
-            // Check authentication state
             auth.onAuthStateChanged(user => {
                 currentUser = user;
                 if (user) {
                     userInfo.textContent = `Your User ID: ${user.uid}`;
                     checkUserPhoto();
+                    navProfile.querySelector('span:nth-child(2)').textContent = 'My Profile';
+                    navProfile.setAttribute('href', 'upload.html');
                 } else {
+                    navProfile.querySelector('span:nth-child(2)').textContent = 'Login';
+                    navProfile.setAttribute('href', 'index.html');
                     window.location.href = 'index.html';
                 }
             });
 
-            // Show notification
             function showNotification(message) {
                 const notification = document.createElement('div');
                 notification.className = 'notification';
@@ -197,12 +251,10 @@
                 }, 2000);
             }
 
-            // Show/hide loading overlay
             function toggleLoading(show) {
                 loadingOverlay.style.display = show ? 'flex' : 'none';
             }
 
-            // Extract Storage path from download URL
             function getStoragePathFromUrl(url) {
                 try {
                     const decodedUrl = decodeURIComponent(url);
@@ -218,7 +270,6 @@
                 }
             }
 
-            // Validate photo with n8n webhook
             async function validatePhotoWithN8n(file) {
                 if (BYPASS_N8N) {
                     console.warn('Bypassing n8n validation for testing');
@@ -234,7 +285,7 @@
                 const timeoutId = setTimeout(() => {
                     controller.abort();
                     console.error('n8n request timed out after 60 seconds');
-                }, 60000); // Increased to 60 seconds
+                }, 60000);
 
                 let n8nResponse;
                 try {
@@ -283,7 +334,6 @@
                 return analysisResult;
             }
 
-            // Check for existing photo for the authenticated user
             function checkUserPhoto() {
                 if (!currentUser) return;
                 db.collection('photos')
@@ -317,8 +367,8 @@
                     });
             }
 
-            // Upload photo (new photo)
             uploadButton.addEventListener('click', async () => {
+                console.log('Upload button clicked');
                 if (!currentUser) {
                     showNotification('Please log in to upload a photo.');
                     window.location.href = 'index.html';
@@ -385,29 +435,6 @@
                     console.error('Error during upload:', error.message, error.stack);
                     if (error.message.includes('n8n')) {
                         showNotification('Image validation failed due to n8n timeout. Please try again or contact support.');
-                        // Optional: Allow upload to proceed despite n8n failure (uncomment for testing)
-                        /*
-                        console.warn('Proceeding with upload despite n8n failure');
-                        const storageRef = storage.ref(`photos/${Date.now()}_${file.name}`);
-                        const snapshot = await storageRef.put(file);
-                        const downloadURL = await snapshot.ref.getDownloadURL();
-                        const photoData = {
-                            src: downloadURL,
-                            desc: descriptionText,
-                            tags: tags,
-                            userId: currentUser.uid,
-                            timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                        };
-                        const docRef = await db.collection('photos').add(photoData);
-                        currentPhotoDocId = docRef.id;
-                        showNotification('Photo uploaded successfully (validation bypassed due to n8n timeout).');
-                        photoInput.value = '';
-                        description.value = '';
-                        tag1.value = '';
-                        tag2.value = '';
-                        tag3.value = '';
-                        checkUserPhoto();
-                        */
                     } else {
                         showNotification(`Error during upload: ${error.message}`);
                     }
@@ -417,7 +444,6 @@
                 }
             });
 
-            // Update photo (replace existing photo, description, and tags)
             updateButton.addEventListener('click', async () => {
                 if (!currentUser) {
                     showNotification('Please log in to update a photo.');
@@ -496,36 +522,6 @@
                     console.error('Error during update:', error.message, error.stack);
                     if (error.message.includes('n8n')) {
                         showNotification('Image validation failed due to n8n timeout. Please try again or contact support.');
-                        // Optional: Allow update to proceed despite n8n failure (uncomment for testing)
-                        /*
-                        if (file) {
-                            console.warn('Proceeding with update despite n8n failure');
-                            const storageRef = storage.ref(`photos/${Date.now()}_${file.name}`);
-                            const snapshot = await storageRef.put(file);
-                            downloadURL = await snapshot.ref.getDownloadURL();
-                            if (oldStoragePath) {
-                                try {
-                                    await storage.ref(oldStoragePath).delete();
-                                    console.log('Old photo deleted from Storage:', oldStoragePath);
-                                } catch (deleteError) {
-                                    console.warn('Failed to delete old photo from Storage:', deleteError.message);
-                                }
-                            }
-                        }
-                        const updatedData = {
-                            src: downloadURL || placeholderImage,
-                            desc: descriptionText,
-                            tags: tags,
-                            userId: currentUser.uid,
-                            timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                        };
-                        await db.collection('photos').doc(currentPhotoDocId).set(updatedData, { merge: false });
-                        showNotification('Photo details updated successfully (validation bypassed due to n8n timeout).');
-                        currentPhotoInput.value = '';
-                        currentPhoto.src = downloadURL || placeholderImage;
-                        currentPhotoUrl = downloadURL;
-                        checkUserPhoto();
-                        */
                     } else {
                         showNotification(`Error during update: ${error.message}`);
                     }
@@ -535,7 +531,27 @@
                 }
             });
 
-            // Initial check for user photo (will be triggered after auth state change)
+            navExplore.addEventListener('click', () => {
+                document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+                navExplore.classList.add('active');
+            });
+
+            navProfile.addEventListener('click', () => {
+                document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+                navProfile.classList.add('active');
+            });
+
+            navChat.addEventListener('click', () => {
+                document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+                navChat.classList.add('active');
+            });
+
+            navSettings.addEventListener('click', (e) => {
+                e.preventDefault();
+                document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+                navSettings.classList.add('active');
+                alert('Settings feature coming soon!');
+            });
         });
     </script>
 </body>
