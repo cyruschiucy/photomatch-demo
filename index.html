@@ -203,7 +203,7 @@
         .nav-btn.active {
             color: #ec4899;
         }
-        .nav-btn i {
+        .nav-btn span:first-child {
             font-size: 1.5rem;
             margin-bottom: 0.25rem;
         }
@@ -271,7 +271,7 @@
             .settings-modal select { font-size: 1rem; }
             .settings-modal button { font-size: 1rem; padding: 0.5rem 1rem; }
             .nav-btn { font-size: 0.875rem; }
-            .nav-btn i { font-size: 1.75rem; }
+            .nav-btn span:first-child { font-size: 1.75rem; }
         }
     </style>
 </head>
@@ -319,19 +319,19 @@
     </div>
     <div class="nav-bar">
         <a href="#" id="navExplore" class="nav-btn active">
-            <i class="fas fa-compass"></i>
+            <span>🧭</span>
             <span>Explore</span>
         </a>
         <a href="#" id="navProfile" class="nav-btn">
-            <i class="fas fa-user"></i>
+            <span>👤</span>
             <span>Login</span>
         </a>
         <a href="chatlist.html" id="navChat" class="nav-btn">
-            <i class="fas fa-comment"></i>
+            <span>💬</span>
             <span>Chat</span>
         </a>
         <a href="#" id="navSettings" class="nav-btn">
-            <i class="fas fa-cog"></i>
+            <span>⚙</span>
             <span>Settings</span>
         </a>
     </div>
@@ -339,7 +339,6 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
@@ -394,14 +393,14 @@
             auth.onAuthStateChanged(user => {
                 currentUser = user;
                 if (user) {
-                    navProfile.querySelector('span').textContent = 'My Profile';
+                    navProfile.querySelector('span:last-child').textContent = 'My Profile';
                     logoutButton.classList.remove('hidden');
                     timers.forEach(timer => clearInterval(timer));
                     timers.clear();
                     listenForNotifications();
                     listenForChatConfirmations();
                 } else {
-                    navProfile.querySelector('span').textContent = 'Login';
+                    navProfile.querySelector('span:last-child').textContent = 'Login';
                     logoutButton.classList.add('hidden');
                     timers.forEach(timer => clearInterval(timer));
                     timers.clear();
