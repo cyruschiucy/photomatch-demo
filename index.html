@@ -138,6 +138,42 @@
             z-index: 40;
             display: none;
         }
+        .login-modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            z-index: 60;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            max-width: 90%;
+            width: 400px;
+            display: none;
+        }
+        .login-modal.active {
+            display: block;
+        }
+        .login-modal input {
+            width: 100%;
+            padding: 0.5rem;
+            margin-bottom: 1rem;
+            border: 1px solid #ccc;
+            border-radius: 0.25rem;
+        }
+        .login-modal button {
+            background-color: #10b981;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.25rem;
+            cursor: pointer;
+            border: none;
+            margin-right: 0.5rem;
+        }
+        .login-modal button:hover {
+            background-color: #059669;
+        }
         @media (max-width: 640px) {
             .timer-circle {
                 font-size: 1.5rem;
@@ -178,13 +214,29 @@
                 font-size: 0.8rem;
                 padding: 0.4rem 0.8rem;
             }
+            .login-modal {
+                width: 300px;
+                padding: 1.5rem;
+            }
+            .login-modal input {
+                font-size: 0.875rem;
+            }
+            .login-modal button {
+                font-size: 0.875rem;
+                padding: 0.4rem 0.8rem;
+            }
         }
     </style>
 </head>
 <body class="bg-gray-100">
     <div class="container mx-auto p-6 flex-1 relative">
-        <!-- Upload Button in Top-Right Corner -->
-        <a href="upload.html" class="absolute top-6 right-6 bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600">Upload Photo</a>
+        <!-- User Status and Buttons -->
+        <div class="absolute top-6 right-6 flex items-center space-x-4">
+            <span id="userStatus" class="text-lg font-medium"></span>
+            <button id="loginButton" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">Login</button>
+            <button id="logoutButton" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 hidden">Logout</button>
+            <a id="uploadButton" href="upload.html" class="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 hidden">Upload Photo</a>
+        </div>
 
         <!-- Session Info -->
         <div class="mb-6 text-center">
@@ -221,10 +273,23 @@
 
         <!-- Pull to Refresh Indicator -->
         <div id="pullToRefresh" class="pull-to-refresh">Pull to refresh</div>
+
+        <!-- Login Modal -->
+        <div id="loginModal" class="login-modal">
+            <h2 class="text-xl font-bold mb-4">Login</h2>
+            <input type="email" id="emailInput" placeholder="Email" aria-label="Email">
+            <input type="password" id="passwordInput" placeholder="Password" aria-label="Password">
+            <div class="flex justify-between">
+                <button id="signInButton">Sign In</button>
+                <button id="signUpButton">Sign Up</button>
+            </div>
+            <p id="loginError" class="text-red-500 mt-2"></p>
+        </div>
     </div>
 
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 
     <script>
@@ -239,6 +304,7 @@
             measurementId: "G-E4C40CW3N3"
         };
         const app = firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
         const db = firebase.firestore();
 
         let images = [];
@@ -249,16 +315,90 @@
         const skipButton = document.getElementById('skipButton');
         const pullToRefresh = document.getElementById('pullToRefresh');
         const sessionInfo = document.getElementById('sessionInfo');
+        const userStatus = document.getElementById('userStatus');
+        const loginButton = document.getElementById('loginButton');
+        const logoutButton = document.getElementById('logoutButton');
+        const uploadButton = document.getElementById('uploadButton');
+        const loginModal = document.getElementById('loginModal');
+        const emailInput = document.getElementById('emailInput');
+        const passwordInput = document.getElementById('passwordInput');
+        const signInButton = document.getElementById('signInButton');
+        const signUpButton = document.getElementById('signUpButton');
+        const loginError = document.getElementById('loginError');
         let currentImageIndex = 0;
         let timers = new Map();
         let scrollTimeout = null;
         let lastScrollY = window.scrollY;
         let bottomReached = false;
-        const currentSessionId = localStorage.getItem('sessionId') || Math.random().toString(36).substr(2, 9);
-        localStorage.setItem('sessionId', currentSessionId);
+        let currentUser = null;
 
-        // Display session ID
-        sessionInfo.textContent = `Your Session ID: ${currentSessionId}`;
+        // Handle authentication state
+        auth.onAuthStateChanged(user => {
+            currentUser = user;
+            if (user) {
+                userStatus.textContent = `Logged in as: ${user.email}`;
+                loginButton.classList.add('hidden');
+                logoutButton.classList.remove('hidden');
+                uploadButton.classList.remove('hidden');
+                sessionInfo.textContent = `Your User ID: ${user.uid}`;
+                listenForNotifications();
+                listenForChatConfirmations();
+            } else {
+                userStatus.textContent = 'Not logged in';
+                loginButton.classList.remove('hidden');
+                logoutButton.classList.add('hidden');
+                uploadButton.classList.add('hidden');
+                sessionInfo.textContent = 'Please log in to access all features';
+                timers.forEach(timer => clearInterval(timer));
+                timers.clear();
+            }
+            updateDisplay();
+        });
+
+        // Show login modal
+        loginButton.addEventListener('click', () => {
+            loginModal.classList.add('active');
+        });
+
+        // Sign in
+        signInButton.addEventListener('click', async () => {
+            const email = emailInput.value;
+            const password = passwordInput.value;
+            try {
+                await auth.signInWithEmailAndPassword(email, password);
+                loginModal.classList.remove('active');
+                emailInput.value = '';
+                passwordInput.value = '';
+                loginError.textContent = '';
+            } catch (error) {
+                loginError.textContent = error.message;
+            }
+        });
+
+        // Sign up
+        signUpButton.addEventListener('click', async () => {
+            const email = emailInput.value;
+            const password = passwordInput.value;
+            try {
+                await auth.createUserWithEmailAndPassword(email, password);
+                loginModal.classList.remove('active');
+                emailInput.value = '';
+                passwordInput.value = '';
+                loginError.textContent = '';
+            } catch (error) {
+                loginError.textContent = error.message;
+            }
+        });
+
+        // Logout
+        logoutButton.addEventListener('click', async () => {
+            try {
+                await auth.signOut();
+            } catch (error) {
+                console.error('Error signing out:', error);
+                showNotification(null, null, null, null, null, 'Failed to sign out. Please try again.');
+            }
+        });
 
         // Fetch photos from Firestore
         function fetchPhotos() {
@@ -274,7 +414,7 @@
                                 desc: data.desc || 'No description available',
                                 tags: data.tags || ['', '', ''],
                                 music: data.music || null,
-                                sessionId: data.sessionId || 'Unknown'
+                                userId: data.userId || 'Unknown'
                             });
                         }
                     });
@@ -287,7 +427,7 @@
         }
 
         // Show notification with photo, description, tags, countdown, and confirm button
-        function showNotification(photoSrc, description, tags, clickerSessionId, targetSessionId, messageOverride = null, duration = 15000) {
+        function showNotification(photoSrc, description, tags, clickerUserId, targetUserId, messageOverride = null, duration = 15000) {
             const notification = document.createElement('div');
             notification.className = 'notification';
             const imgContainer = document.createElement('div');
@@ -324,19 +464,19 @@
             confirmBtn.textContent = 'Confirm';
             confirmBtn.setAttribute('aria-label', 'Confirm chat request');
             confirmBtn.onclick = async () => {
-                if (!clickerSessionId || !targetSessionId) {
-                    console.error('Missing session IDs for chat confirmation');
+                if (!clickerUserId || !targetUserId) {
+                    console.error('Missing user IDs for chat confirmation');
                     showNotification(null, null, null, null, null, 'Failed to confirm chat. Please try again.');
                     notification.remove();
                     return;
                 }
                 try {
                     // Get target user's description
-                    const targetInfo = await getUserInfo(targetSessionId);
+                    const targetInfo = await getUserInfo(targetUserId);
                     // Create chat confirmation
                     await db.collection('chat_confirmations').add({
-                        clickerSessionId,
-                        targetSessionId,
+                        clickerUserId,
+                        targetUserId,
                         clickerDesc: description,
                         targetDesc: targetInfo.desc,
                         timestamp: firebase.firestore.FieldValue.serverTimestamp()
@@ -375,11 +515,11 @@
             }, duration);
         }
 
-        // Show session ID popup
-        function showSessionPopup(sessionId) {
+        // Show user ID popup
+        function showSessionPopup(userId) {
             const popup = document.createElement('div');
             popup.className = 'session-popup';
-            popup.textContent = `Session ID: ${sessionId}`;
+            popup.textContent = `User ID: ${userId}`;
             popup.setAttribute('role', 'alert');
             document.body.appendChild(popup);
             setTimeout(() => {
@@ -388,10 +528,10 @@
         }
 
         // Get user’s photo, description, and tags
-        async function getUserInfo(sessionId) {
+        async function getUserInfo(userId) {
             try {
                 const querySnapshot = await db.collection('photos')
-                    .where('sessionId', '==', sessionId)
+                    .where('userId', '==', userId)
                     .orderBy('timestamp', 'desc')
                     .limit(1)
                     .get();
@@ -420,9 +560,10 @@
 
         // Listen for click notifications
         function listenForNotifications() {
+            if (!currentUser) return;
             try {
                 db.collection('click_notifications')
-                    .where('targetSessionId', '==', currentSessionId)
+                    .where('targetUserId', '==', currentUser.uid)
                     .where('timestamp', '>=', new Date(Date.now() - 60000))
                     .onSnapshot(snapshot => {
                         snapshot.docChanges().forEach(change => {
@@ -432,8 +573,8 @@
                                     data.photoSrc,
                                     data.description,
                                     data.tags,
-                                    data.clickerSessionId,
-                                    data.targetSessionId
+                                    data.clickerUserId,
+                                    data.targetUserId
                                 );
                                 // Delete the notification after processing
                                 db.collection('click_notifications').doc(change.doc.id).delete();
@@ -457,9 +598,10 @@
 
         // Listen for chat confirmations
         function listenForChatConfirmations() {
+            if (!currentUser) return;
             try {
                 db.collection('chat_confirmations')
-                    .where('clickerSessionId', '==', currentSessionId)
+                    .where('clickerUserId', '==', currentUser.uid)
                     .where('timestamp', '>=', new Date(Date.now() - 60000))
                     .onSnapshot(snapshot => {
                         snapshot.docChanges().forEach(change => {
@@ -472,10 +614,9 @@
                             }
                         });
                     }, error => {
-                        console.error('Error listening for chat confirmations:', error, error.stack);
+                        console.error('Error listening for chat confirmations:', error);
                         if (error.code === 'failed-precondition' && error.message.includes('requires an index')) {
                             showNotification(null, null, null, null, null, 'Chat system is temporarily unavailable. Please create the required index in Firestore.');
-                            console.log('Please create a composite index for chat_confirmations with fields: clickerSessionId (Ascending), timestamp (Ascending). Check the Firebase console or the error message for a direct link.');
                         } else if (error.code === 'permission-denied') {
                             showNotification(null, null, null, null, null, 'Permission denied for chat confirmations. Please check Firestore security rules.');
                         } else {
@@ -483,7 +624,7 @@
                         }
                     });
             } catch (error) {
-                console.error('Unexpected error in listenForChatConfirmations:', error, error.stack);
+                console.error('Unexpected error in listenForChatConfirmations:', error);
                 showNotification(null, null, null, null, null, 'Error setting up chat system. Please refresh the page.');
             }
         }
@@ -495,16 +636,16 @@
 
         function createPhotoElement(image, index) {
             if (!image || typeof image !== 'object') {
-                image = { src: 'https://via.placeholder.com/900x1600', desc: 'Error loading image', tags: ['', '', ''], music: null, sessionId: 'Unknown' };
+                image = { src: 'https://via.placeholder.com/900x1600', desc: 'Error loading image', tags: ['', '', ''], music: null, userId: 'Unknown' };
             }
             const div = document.createElement('div');
             div.className = 'aspect-9-16 w-full overflow-hidden rounded-lg relative';
-            div.dataset.sessionId = image.sessionId || 'Unknown';
+            div.dataset.userId = image.userId || 'Unknown';
             const img = document.createElement('img');
             img.src = image.src || 'https://via.placeholder.com/900x1600';
             img.alt = image.desc || 'No description';
-            img.className = 'w-full h-full object-cover cursor-pointer';
-            img.setAttribute('aria-label', 'Click to view session ID and start countdown timer for photo');
+            img.className = 'w-full h-full object-cover';
+            img.setAttribute('aria-label', 'Photo');
             img.onerror = () => {
                 img.src = 'https://via.placeholder.com/900x1600?text=Image+Failed+to+Load';
                 img.alt = 'Failed to load image';
@@ -543,6 +684,10 @@
         }
 
         function startCountdown(photoDiv, mode) {
+            if (!currentUser) {
+                showNotification(null, null, null, null, null, 'Please log in to start matching.');
+                return;
+            }
             const id = btoa(photoDiv.querySelector('img').src).slice(0, 10);
             if (timers.size > 0) {
                 showNotification(null, null, null, null, null, 'Please wait for the current countdown to finish!');
@@ -597,7 +742,7 @@
                 newMusicDiv.innerHTML = `<span class="music-symbol">♫</span> - ${newImage.music.song} - ${newImage.music.singer}`;
                 photoDiv.appendChild(newMusicDiv);
             }
-            photoDiv.dataset.sessionId = newImage.sessionId || 'Unknown';
+            photoDiv.dataset.userId = newImage.userId || 'Unknown';
             if (mode === 'one') {
                 currentImageIndex = images.findIndex(img => img.src === newImage.src);
             }
@@ -638,14 +783,47 @@
                         tempContainer.appendChild(activePhotoDiv);
                         continue;
                     }
-                    const image = randomImages[i - (activePhotoDiv ? 1 : 0)] || { src: 'https://via.placeholder.com/900x1600', desc: 'No image available', tags: ['', '', ''], music: null, sessionId: 'Unknown' };
+                    const image = randomImages[i - (activePhotoDiv ? 1 : 0)] || { src: 'https://via.placeholder.com/900x1600', desc: 'No image available', tags: ['', '', ''], music: null, userId: 'Unknown' };
                     const photoDiv = createPhotoElement(image, i);
-                    photoDiv.querySelector('img').addEventListener('click', async () => {
-                        showSessionPopup(photoDiv.dataset.sessionId);
-                        const userInfo = await getUserInfo(currentSessionId);
+                    const img = photoDiv.querySelector('img');
+                    if (currentUser) {
+                        img.classList.add('cursor-pointer');
+                        img.setAttribute('aria-label', 'Click to view user ID and start countdown timer for photo');
+                        img.addEventListener('click', async () => {
+                            showSessionPopup(photoDiv.dataset.userId);
+                            const userInfo = await getUserInfo(currentUser.uid);
+                            db.collection('click_notifications').add({
+                                targetUserId: photoDiv.dataset.userId,
+                                clickerUserId: currentUser.uid,
+                                photoSrc: userInfo.src,
+                                description: userInfo.desc,
+                                tags: userInfo.tags,
+                                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                            }).catch(error => {
+                                console.error('Error sending notification:', error);
+                                showNotification(null, null, null, null, null, 'Failed to send notification. Please try again.');
+                            });
+                            startCountdown(photoDiv, 'four');
+                        });
+                    }
+                    tempContainer.appendChild(photoDiv);
+                }
+                photoContainer.append(...tempContainer.children);
+            } else {
+                photoContainer.classList.remove('grid-cols-2', 'sm:grid-cols-2', 'lg:grid-cols-4');
+                photoContainer.classList.add('grid-cols-1');
+                navButtons.classList.remove('hidden');
+                const div = createPhotoElement(images[currentImageIndex] || { src: 'https://via.placeholder.com/900x1600', desc: 'No image available', tags: ['', '', ''], music: null, userId: 'Unknown' }, 0);
+                const img = div.querySelector('img');
+                if (currentUser) {
+                    img.classList.add('cursor-pointer');
+                    img.setAttribute('aria-label', 'Click to view user ID and start countdown timer for photo');
+                    img.addEventListener('click', async () => {
+                        showSessionPopup(div.dataset.userId);
+                        const userInfo = await getUserInfo(currentUser.uid);
                         db.collection('click_notifications').add({
-                            targetSessionId: photoDiv.dataset.sessionId,
-                            clickerSessionId: currentSessionId,
+                            targetUserId: div.dataset.userId,
+                            clickerUserId: currentUser.uid,
                             photoSrc: userInfo.src,
                             description: userInfo.desc,
                             tags: userInfo.tags,
@@ -654,32 +832,9 @@
                             console.error('Error sending notification:', error);
                             showNotification(null, null, null, null, null, 'Failed to send notification. Please try again.');
                         });
-                        startCountdown(photoDiv, 'four');
+                        startCountdown(div, 'one');
                     });
-                    tempContainer.appendChild(photoDiv);
                 }
-                photoContainer.append(...tempContainer.children);
-            } else {
-                photoContainer.classList.remove('grid-cols-2', 'sm:grid-cols-2', 'lg:grid-cols-4');
-                photoContainer.classList.add('grid-cols-1');
-                navButtons.classList.remove('hidden');
-                const div = createPhotoElement(images[currentImageIndex] || { src: 'https://via.placeholder.com/900x1600', desc: 'No image available', tags: ['', '', ''], music: null, sessionId: 'Unknown' }, 0);
-                div.querySelector('img').addEventListener('click', async () => {
-                    showSessionPopup(div.dataset.sessionId);
-                    const userInfo = await getUserInfo(currentSessionId);
-                    db.collection('click_notifications').add({
-                        targetSessionId: div.dataset.sessionId,
-                        clickerSessionId: currentSessionId,
-                        photoSrc: userInfo.src,
-                        description: userInfo.desc,
-                        tags: userInfo.tags,
-                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                    }).catch(error => {
-                        console.error('Error sending notification:', error);
-                        showNotification(null, null, null, null, null, 'Failed to send notification. Please try again.');
-                    });
-                    startCountdown(div, 'one');
-                });
                 photoContainer.appendChild(div);
             }
         }
@@ -732,10 +887,8 @@
             updateDisplay();
         });
 
-        // Initial fetch of photos and start listeners
+        // Initial fetch of photos
         fetchPhotos();
-        listenForNotifications();
-        listenForChatConfirmations();
     </script>
 </body>
 </html>
