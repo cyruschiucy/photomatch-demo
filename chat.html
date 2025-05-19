@@ -1,106 +1,354 @@
-<script type="text/javascript">
-        var gk_isXlsx = false;
-        var gk_xlsxFileLookup = {};
-        var gk_fileData = {};
-        function filledCell(cell) {
-          return cell !== '' && cell != null;
-        }
-        function loadFileData(filename) {
-        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
-            try {
-                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
-                var firstSheetName = workbook.SheetNames[0];
-                var worksheet = workbook.Sheets[firstSheetName];
-
-                // Convert sheet to JSON to filter blank rows
-                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
-                // Filter out blank rows (rows where all cells are empty, null, or undefined)
-                var filteredData = jsonData.filter(row => row.some(filledCell));
-
-                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
-                var headerRowIndex = filteredData.findIndex((row, index) =>
-                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
-                );
-                // Fallback
-                if (headerRowIndex === -1 || headerRowIndex > 25) {
-                  headerRowIndex = 0;
-                }
-
-                // Convert filtered JSON back to CSV
-                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
-                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
-                return csv;
-            } catch (e) {
-                console.error(e);
-                return "";
-            }
-        }
-        return gk_fileData[filename] || "";
-        }
-        </script><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chat Created</title>
+    <title>Chat</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
             background-color: #f3f4f6;
         }
-        .container {
-            text-align: center;
+        .chat-container {
+            max-width: 800px;
+            margin: 1rem auto;
             background-color: white;
-            padding: 2rem;
             border-radius: 0.5rem;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            max-width: 90%;
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 2rem);
+        }
+        .chat-header {
+            padding: 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .chat-messages {
+            flex: 1;
+            padding: 1rem;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
         }
         .message {
-            font-size: 1.25rem;
-            margin-bottom: 1.5rem;
+            max-width: 70%;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            word-break: break-word;
         }
-        .back-btn {
+        .message-you {
+            background-color: #3b82f6;
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 0;
+        }
+        .message-other {
+            background-color: #e5e7eb;
+            color: black;
+            align-self: flex-start;
+            border-bottom-left-radius: 0;
+        }
+        .message-timestamp {
+            font-size: 0.75rem;
+            color: #6b7280;
+            margin-top: 0.25rem;
+        }
+        .chat-input {
+            padding: 1rem;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            gap: 0.5rem;
+        }
+        .chat-input input {
+            flex: 1;
+            padding: 0.5rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.25rem;
+            outline: none;
+        }
+        .chat-input button {
             background-color: #3b82f6;
             color: white;
             padding: 0.5rem 1rem;
             border-radius: 0.25rem;
-            text-decoration: none;
-            font-size: 1rem;
+            border: none;
+            cursor: pointer;
         }
-        .back-btn:hover {
+        .chat-input button:hover {
             background-color: #2563eb;
         }
+        .notification {
+            position: fixed;
+            top: 20%;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #ef4444;
+            color: white;
+            padding: 1rem 2rem;
+            border-radius: 0.5rem;
+            z-index: 50;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+        }
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
         @media (max-width: 640px) {
-            .container {
-                padding: 1.5rem;
+            .chat-container {
+                margin: 0.5rem;
+                height: calc(100vh - 1rem);
+            }
+            .chat-header, .chat-input {
+                padding: 0.75rem;
+            }
+            .chat-messages {
+                padding: 0.75rem;
             }
             .message {
-                font-size: 1rem;
-            }
-            .back-btn {
-                font-size: 0.875rem;
-                padding: 0.4rem 0.8rem;
+                max-width: 80%;
             }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="message" id="chatMessage">Chat created successfully with Someone</div>
-        <a href="index.html" class="back-btn">Back to photo page</a>
+    <div class="chat-container">
+        <div class="chat-header">
+            <h2 id="chatTitle" class="text-lg font-bold">Chat with Someone</h2>
+            <a href="index.html" class="text-blue-500 hover:text-blue-600">Back to Photos</a>
+        </div>
+        <div id="chatMessages" class="chat-messages"></div>
+        <div class="chat-input">
+            <input id="messageInput" type="text" placeholder="Type a message..." autocomplete="off">
+            <button id="sendButton">Send</button>
+        </div>
     </div>
 
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-spinner"></div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
     <script>
-        // Get description from URL parameter
-        const urlParams = new URLSearchParams(window.location.search);
-        const desc = urlParams.get('desc') || 'Someone';
-        document.getElementById('chatMessage').textContent = `Chat created successfully with ${decodeURIComponent(desc)}`;
+        document.addEventListener('DOMContentLoaded', () => {
+            if (typeof firebase === 'undefined') {
+                console.error('Firebase SDK not loaded');
+                showNotification('Failed to load Firebase. Please check your internet connection.');
+                return;
+            }
+
+            const firebaseConfig = {
+                apiKey: "AIzaSyCuDzchHx0AhrDzmnNjQ6f0YpwKhPpUqo0",
+                authDomain: "photomatch-demo.firebaseapp.com",
+                projectId: "photomatch-demo",
+                storageBucket: "photomatch-demo.firebasestorage.app",
+                messagingSenderId: "138957187291",
+                appId: "1:138957187291:web:8717b276b2d24a121344fe",
+                measurementId: "G-E4C40CW3N3"
+            };
+            const app = firebase.initializeApp(firebaseConfig);
+            const auth = firebase.auth();
+            const db = firebase.firestore();
+
+            let currentUser = null;
+            let chatId = null;
+            let otherUserId = null;
+            let unsubscribeMessages = null;
+
+            const chatMessages = document.getElementById('chatMessages');
+            const messageInput = document.getElementById('messageInput');
+            const sendButton = document.getElementById('sendButton');
+            const chatTitle = document.getElementById('chatTitle');
+            const loadingOverlay = document.getElementById('loadingOverlay');
+
+            // Get URL parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            chatId = urlParams.get('chatId');
+            otherUserId = urlParams.get('otherUserId');
+            const desc = urlParams.get('desc') || 'Someone';
+
+            // Show notification
+            function showNotification(message) {
+                const notification = document.createElement('div');
+                notification.className = 'notification';
+                notification.textContent = message;
+                document.body.appendChild(notification);
+                setTimeout(() => {
+                    notification.remove();
+                }, 2000);
+            }
+
+            // Show/hide loading overlay
+            function toggleLoading(show) {
+                loadingOverlay.style.display = show ? 'flex' : 'none';
+            }
+
+            // Format timestamp
+            function formatTimestamp(timestamp) {
+                if (!timestamp) return '';
+                const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+                return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            }
+
+            // Render message
+            function renderMessage(message) {
+                const div = document.createElement('div');
+                const isYou = message.senderId === currentUser.uid;
+                div.className = `message ${isYou ? 'message-you' : 'message-other'}`;
+                div.innerHTML = `
+                    <div>${message.content}</div>
+                    <div class="message-timestamp">${formatTimestamp(message.timestamp)}</div>
+                `;
+                chatMessages.appendChild(div);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+
+            // Initialize chat
+            async function initChat() {
+                if (!currentUser || (!chatId && !otherUserId)) {
+                    showNotification('Invalid chat parameters.');
+                    setTimeout(() => window.location.href = 'index.html', 2000);
+                    return;
+                }
+
+                toggleLoading(true);
+                try {
+                    let chatDocRef;
+                    if (chatId) {
+                        // Load chat by chatId
+                        chatDocRef = db.collection('chats').doc(chatId);
+                        const chatDoc = await chatDocRef.get();
+                        if (!chatDoc.exists || !chatDoc.data().participants.includes(currentUser.uid)) {
+                            throw new Error('Chat not found or access denied.');
+                        }
+                        otherUserId = chatDoc.data().participants.find(uid => uid !== currentUser.uid);
+                    } else {
+                        // Find or create chat with otherUserId
+                        const chatQuery = await db.collection('chats')
+                            .where('participants', 'array-contains', currentUser.uid)
+                            .get();
+                        let existingChat = chatQuery.docs.find(doc => 
+                            doc.data().participants.includes(otherUserId)
+                        );
+                        if (existingChat) {
+                            chatId = existingChat.id;
+                            chatDocRef = db.collection('chats').doc(chatId);
+                        } else {
+                            const chatData = {
+                                participants: [currentUser.uid, otherUserId],
+                                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                                lastMessage: '',
+                                lastMessageAt: null
+                            };
+                            const docRef = await db.collection('chats').add(chatData);
+                            chatId = docRef.id;
+                            chatDocRef = docRef;
+                        }
+                    }
+
+                    // Update chat title
+                    chatTitle.textContent = `Chat with ${decodeURIComponent(desc)}`;
+
+                    // Listen for messages
+                    unsubscribeMessages = chatDocRef.collection('messages')
+                        .orderBy('timestamp', 'asc')
+                        .onSnapshot(snapshot => {
+                            chatMessages.innerHTML = '';
+                            snapshot.forEach(doc => {
+                                renderMessage(doc.data());
+                            });
+                        }, error => {
+                            console.error('Error listening to messages:', error);
+                            showNotification('Error loading messages.');
+                        });
+                } catch (error) {
+                    console.error('Error initializing chat:', error);
+                    showNotification(error.message || 'Error loading chat.');
+                    setTimeout(() => window.location.href = 'index.html', 2000);
+                } finally {
+                    toggleLoading(false);
+                }
+            }
+
+            // Send message
+            sendButton.addEventListener('click', async () => {
+                const content = messageInput.value.trim();
+                if (!content) {
+                    showNotification('Please enter a message.');
+                    return;
+                }
+                if (!chatId || !currentUser) return;
+
+                try {
+                    const chatDocRef = db.collection('chats').doc(chatId);
+                    await chatDocRef.collection('messages').add({
+                        senderId: currentUser.uid,
+                        content,
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    await chatDocRef.update({
+                        lastMessage: content,
+                        lastMessageAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    messageInput.value = '';
+                } catch (error) {
+                    console.error('Error sending message:', error);
+                    showNotification('Error sending message.');
+                }
+            });
+
+            // Send message on Enter key
+            messageInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    sendButton.click();
+                }
+            });
+
+            // Check authentication state
+            auth.onAuthStateChanged(user => {
+                currentUser = user;
+                if (user) {
+                    initChat();
+                } else {
+                    showNotification('Please log in to access the chat.');
+                    window.location.href = 'index.html';
+                }
+            });
+
+            // Cleanup listener on page unload
+            window.addEventListener('unload', () => {
+                if (unsubscribeMessages) {
+                    unsubscribeMessages();
+                }
+            });
+        });
     </script>
 </body>
 </html>
