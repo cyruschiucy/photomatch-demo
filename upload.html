@@ -64,9 +64,9 @@
         <!-- Back to Index Button -->
         <a href="index.html" class="mb-6 inline-block bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">Back to Photos</a>
 
-        <!-- Session Info -->
+        <!-- User Info -->
         <div class="mb-6 text-center">
-            <p id="sessionInfo" class="text-lg font-medium"></p>
+            <p id="userInfo" class="text-lg font-medium"></p>
         </div>
 
         <!-- Upload Form -->
@@ -95,6 +95,10 @@
         <div id="currentPhotoSection" class="bg-white p-6 rounded-lg shadow-md hidden">
             <h2 class="text-xl font-bold mb-4">Current Photo</h2>
             <div class="mb-4">
+                <label for="currentPhotoInput" class="block text-sm font-medium text-gray-700">Replace Photo (optional)</label>
+                <input type="file" id="currentPhotoInput" accept="image/*" class="mt-1 block w-full p-2 border rounded-lg">
+            </div>
+            <div class="mb-4">
                 <img id="currentPhoto" class="photo-preview" src="" alt="Current photo">
             </div>
             <div class="mb-4">
@@ -119,259 +123,390 @@
     </div>
 
     <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 
     <script>
-        // Initialize Firebase
-        const firebaseConfig = {
-            apiKey: "AIzaSyCuDzchHx0AhrDzmnNjQ6f0YpwKhPpUqo0",
-            authDomain: "photomatch-demo.firebaseapp.com",
-            projectId: "photomatch-demo",
-            storageBucket: "photomatch-demo.firebasestorage.app",
-            messagingSenderId: "138957187291",
-            appId: "1:138957187291:web:8717b276b2d24a121344fe",
-            measurementId: "G-E4C40CW3N3"
-        };
-        const app = firebase.initializeApp(firebaseConfig);
-        const storage = firebase.storage();
-        const db = firebase.firestore();
-
-        // Session Management
-        let currentSessionId = localStorage.getItem('sessionId') || Math.random().toString(36).substr(2, 9);
-        localStorage.setItem('sessionId', currentSessionId);
-        let currentPhotoDocId = null;
-
-        const sessionInfo = document.getElementById('sessionInfo');
-        const uploadForm = document.getElementById('uploadForm');
-        const photoInput = document.getElementById('photoInput');
-        const description = document.getElementById('description');
-        const errorMessage = document.getElementById('errorMessage');
-        const tag1 = document.getElementById('tag1');
-        const tag2 = document.getElementById('tag2');
-        const tag3 = document.getElementById('tag3');
-        const uploadButton = document.getElementById('uploadButton');
-        const currentPhotoSection = document.getElementById('currentPhotoSection');
-        const currentPhoto = document.getElementById('currentPhoto');
-        const currentDescription = document.getElementById('currentDescription');
-        const currentTag1 = document.getElementById('currentTag1');
-        const currentTag2 = document.getElementById('currentTag2');
-        const currentTag3 = document.getElementById('currentTag3');
-        const updateButton = document.getElementById('updateButton');
-        const loadingOverlay = document.getElementById('loadingOverlay');
-
-        sessionInfo.textContent = `Your Session ID: ${currentSessionId}`;
-
-        // Show notification (for non-blocked errors)
-        function showNotification(message) {
-            const notification = document.createElement('div');
-            notification.className = 'notification';
-            notification.textContent = message;
-            document.body.appendChild(notification);
-            setTimeout(() => {
-                notification.remove();
-            }, 2000);
-        }
-
-        // Show/hide loading overlay
-        function toggleLoading(show) {
-            loadingOverlay.style.display = show ? 'flex' : 'none';
-        }
-
-        // Check for existing photo in session
-        function checkSessionPhoto() {
-            db.collection('photos')
-                .where('sessionId', '==', currentSessionId)
-                .orderBy('timestamp', 'desc')
-                .limit(1)
-                .get()
-                .then(snapshot => {
-                    if (!snapshot.empty) {
-                        const doc = snapshot.docs[0];
-                        currentPhotoDocId = doc.id;
-                        const data = doc.data();
-                        currentPhoto.src = data.src;
-                        currentPhoto.alt = data.desc;
-                        currentDescription.value = data.desc;
-                        const tags = data.tags || ['', '', ''];
-                        currentTag1.value = tags[0];
-                        currentTag2.value = tags[1];
-                        currentTag3.value = tags[2];
-                        currentPhotoSection.classList.remove('hidden');
-                        uploadForm.classList.add('hidden');
-                    } else {
-                        currentPhotoSection.classList.add('hidden');
-                        uploadForm.classList.remove('hidden');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error checking session photo:', error.message, error.code);
-                    showNotification('Error checking session photo. Check console for details.');
-                });
-        }
-
-        // Upload photo
-        uploadButton.addEventListener('click', async () => {
-            const file = photoInput.files[0];
-            if (!file) {
-                showNotification('Please select a photo to upload.');
+        document.addEventListener('DOMContentLoaded', () => {
+            if (typeof firebase === 'undefined') {
+                console.error('Firebase SDK not loaded');
+                showNotification('Failed to load Firebase. Please check your internet connection.');
                 return;
             }
 
-            const descriptionText = description.value.trim();
-            if (!descriptionText) {
-                showNotification('Please enter a description.');
-                return;
+            const firebaseConfig = {
+                apiKey: "AIzaSyCuDzchHx0AhrDzmnNjQ6f0YpwKhPpUqo0",
+                authDomain: "photomatch-demo.firebaseapp.com",
+                projectId: "photomatch-demo",
+                storageBucket: "photomatch-demo.firebasestorage.app",
+                messagingSenderId: "138957187291",
+                appId: "1:138957187291:web:8717b276b2d24a121344fe",
+                measurementId: "G-E4C40CW3N3"
+            };
+            const app = firebase.initializeApp(firebaseConfig);
+            const auth = firebase.auth();
+            const storage = firebase.storage();
+            const db = firebase.firestore();
+            const placeholderImage = 'https://firebasestorage.googleapis.com/v0/b/photomatch-demo.firebasestorage.app/o/photos%2Fplaceholder.jpg?alt=media&token=342ac66c-eb2d-4b60-9b8a-90bdf1231ec0'; // Replace with your Firebase Storage URL
+
+            let currentPhotoDocId = null;
+            let currentUser = null;
+            let currentPhotoUrl = null;
+
+            const userInfo = document.getElementById('userInfo');
+            const uploadForm = document.getElementById('uploadForm');
+            const photoInput = document.getElementById('photoInput');
+            const description = document.getElementById('description');
+            const errorMessage = document.getElementById('errorMessage');
+            const tag1 = document.getElementById('tag1');
+            const tag2 = document.getElementById('tag2');
+            const tag3 = document.getElementById('tag3');
+            const uploadButton = document.getElementById('uploadButton');
+            const currentPhotoSection = document.getElementById('currentPhotoSection');
+            const currentPhotoInput = document.getElementById('currentPhotoInput');
+            const currentPhoto = document.getElementById('currentPhoto');
+            const currentDescription = document.getElementById('currentDescription');
+            const currentTag1 = document.getElementById('currentTag1');
+            const currentTag2 = document.getElementById('currentTag2');
+            const currentTag3 = document.getElementById('currentTag3');
+            const updateButton = document.getElementById('updateButton');
+            const loadingOverlay = document.getElementById('loadingOverlay');
+
+            // Check authentication state
+            auth.onAuthStateChanged(user => {
+                currentUser = user;
+                if (user) {
+                    userInfo.textContent = `Your User ID: ${user.uid}`;
+                    checkUserPhoto();
+                } else {
+                    window.location.href = 'index.html';
+                }
+            });
+
+            // Show notification
+            function showNotification(message) {
+                const notification = document.createElement('div');
+                notification.className = 'notification';
+                notification.textContent = message;
+                document.body.appendChild(notification);
+                setTimeout(() => {
+                    notification.remove();
+                }, 2000);
             }
 
-            const tags = [
-                tag1.value.trim(),
-                tag2.value.trim(),
-                tag3.value.trim()
-            ].concat(Array(3 - Math.min(3, [tag1.value.trim(), tag2.value.trim(), tag3.value.trim()].filter(t => t).length)).fill(''));
+            // Show/hide loading overlay
+            function toggleLoading(show) {
+                loadingOverlay.style.display = show ? 'flex' : 'none';
+            }
 
-            toggleLoading(true);
-            // Clear error message at the start of upload
-            errorMessage.textContent = '';
-            errorMessage.style.display = 'none';
-
-            try {
-                // Debug: Log the webhook URL
-                const webhookUrl = 'https://missingface.app.n8n.cloud/webhook/6de446b5-0b18-4fb4-ba2d-f1ddbe41a179';
-                console.log('Sending request to n8n webhook:', webhookUrl);
-
-                // Upload to n8n webhook for analysis with timeout
-                const formData = new FormData();
-                formData.append('file', file);
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 10000); // 10-second timeout
-                let n8nResponse;
+            // Extract Storage path from download URL
+            function getStoragePathFromUrl(url) {
                 try {
-                    n8nResponse = await fetch(webhookUrl, {
-                        method: 'POST',
-                        body: formData,
-                        signal: controller.signal
+                    const decodedUrl = decodeURIComponent(url);
+                    const pathMatch = decodedUrl.match(/o\/(.+)\?/);
+                    if (pathMatch && pathMatch[1]) {
+                        return pathMatch[1];
+                    }
+                    console.warn('Could not extract Storage path from URL:', url);
+                    return null;
+                } catch (error) {
+                    console.error('Error parsing Storage URL:', error);
+                    return null;
+                }
+            }
+
+            // Check for existing photo for the authenticated user
+            function checkUserPhoto() {
+                if (!currentUser) return;
+                db.collection('photos')
+                    .where('userId', '==', currentUser.uid)
+                    .orderBy('timestamp', 'desc')
+                    .limit(1)
+                    .get()
+                    .then(snapshot => {
+                        if (!snapshot.empty) {
+                            const doc = snapshot.docs[0];
+                            currentPhotoDocId = doc.id;
+                            const data = doc.data();
+                            currentPhoto.src = data.src || placeholderImage;
+                            currentPhoto.alt = data.desc || 'Current photo';
+                            currentPhotoUrl = data.src || null;
+                            currentDescription.value = data.desc || '';
+                            const tags = data.tags || ['', '', ''];
+                            currentTag1.value = tags[0];
+                            currentTag2.value = tags[1];
+                            currentTag3.value = tags[2];
+                            currentPhotoSection.classList.remove('hidden');
+                            uploadForm.classList.add('hidden');
+                        } else {
+                            currentPhotoSection.classList.add('hidden');
+                            uploadForm.classList.remove('hidden');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error checking user photo:', error.message, error.code);
+                        showNotification('Error checking user photo. Check console for details.');
                     });
-                } catch (fetchError) {
-                    if (fetchError.name === 'AbortError') {
-                        console.error('n8n request timed out after 10 seconds');
-                        throw new Error('Request to n8n timed out');
-                    }
-                    console.error('n8n fetch error:', fetchError.message);
-                    throw new Error('Failed to connect to n8n: Possible CORS issue or server error');
-                } finally {
-                    clearTimeout(timeoutId);
-                }
+            }
 
-                // Debug: Log response status and headers
-                console.log('n8n Response Status:', n8nResponse.status, n8nResponse.statusText);
-                console.log('n8n Response Headers:', Object.fromEntries(n8nResponse.headers.entries()));
-
-                // Debug: Log raw response body as text
-                const responseText = await n8nResponse.text();
-                console.log('n8n Raw Response Body:', responseText);
-
-                // Attempt to parse JSON
-                let analysisResult;
-                try {
-                    if (!responseText) {
-                        console.error('n8n response is empty');
-                        throw new Error('Empty response from n8n');
-                    }
-                    const parsed = JSON.parse(responseText);
-                    // Handle array response by taking the first object
-                    analysisResult = Array.isArray(parsed) ? parsed[0] : parsed;
-                    console.log('n8n Parsed JSON Response:', analysisResult);
-                } catch (jsonError) {
-                    console.error('Failed to parse n8n response as JSON:', jsonError.message);
-                    throw new Error(`Invalid response from n8n: ${jsonError.message}`);
-                }
-
-                if (!n8nResponse.ok) {
-                    console.error('n8n request failed with status:', n8nResponse.status, 'Error:', analysisResult.error || 'Unknown error');
-                    throw new Error(`Failed to analyze image with n8n: ${analysisResult.error || 'Unknown error'}`);
-                }
-
-                if (!analysisResult.isAllowed) {
-                    console.log('Upload blocked by n8n:', analysisResult);
-                    // Display error message above Description in red
-                    errorMessage.textContent = 'Upload blocked: Image contains a human face or inappropriate content.';
-                    errorMessage.style.display = 'block';
+            // Upload photo (new photo)
+            uploadButton.addEventListener('click', async () => {
+                if (!currentUser) {
+                    showNotification('Please log in to upload a photo.');
+                    window.location.href = 'index.html';
                     return;
                 }
 
-                // Proceed with Firebase upload if allowed
-                console.log('Image allowed by n8n, proceeding with Firebase upload');
-                const storageRef = storage.ref(`photos/${Date.now()}_${file.name}`);
-                const snapshot = await storageRef.put(file);
-                const downloadURL = await snapshot.ref.getDownloadURL();
+                const file = photoInput.files[0];
+                if (!file) {
+                    showNotification('Please select a photo to upload.');
+                    return;
+                }
 
-                const photoData = {
-                    src: downloadURL,
-                    desc: descriptionText,
-                    tags: tags,
-                    sessionId: currentSessionId,
-                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                };
+                const descriptionText = description.value.trim();
+                if (!descriptionText) {
+                    showNotification('Please enter a description.');
+                    return;
+                }
 
-                const docRef = await db.collection('photos').add(photoData);
-                currentPhotoDocId = docRef.id;
+                const tags = [
+                    tag1.value.trim(),
+                    tag2.value.trim(),
+                    tag3.value.trim()
+                ].concat(Array(3 - Math.min(3, [tag1.value.trim(), tag2.value.trim(), tag3.value.trim()].filter(t => t).length)).fill(''));
 
-                console.log('Firebase upload successful, doc ID:', currentPhotoDocId);
-                showNotification('Photo uploaded successfully!');
-                photoInput.value = '';
-                description.value = '';
-                tag1.value = '';
-                tag2.value = '';
-                tag3.value = '';
-                checkSessionPhoto();
-            } catch (error) {
-                console.error('Error during upload:', error.message, error.stack);
-                showNotification(`Error during upload: ${error.message}`);
-            } finally {
-                toggleLoading(false);
-                console.log('Upload process completed');
-            }
-        });
+                toggleLoading(true);
+                errorMessage.textContent = '';
+                errorMessage.style.display = 'none';
 
-        // Update photo details
-        updateButton.addEventListener('click', () => {
-            if (!currentPhotoDocId) {
-                showNotification('No photo to update.');
-                return;
-            }
+                try {
+                    const webhookUrl = 'https://missingface.app.n8n.cloud/webhook/6de446b5-0b18-4fb4-ba2d-f1ddbe41a179';
+                    console.log('Sending request to n8n webhook:', webhookUrl);
 
-            const descriptionText = currentDescription.value.trim();
-            if (!descriptionText) {
-                showNotification('Please enter a description.');
-                return;
-            }
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 10000);
+                    let n8nResponse;
+                    try {
+                        n8nResponse = await fetch(webhookUrl, {
+                            method: 'POST',
+                            body: formData,
+                            signal: controller.signal
+                        });
+                    } catch (fetchError) {
+                        if (fetchError.name === 'AbortError') {
+                            console.error('n8n request timed out after 10 seconds');
+                            throw new Error('Request to n8n timed out');
+                        }
+                        console.error('n8n fetch error:', fetchError.message);
+                        throw new Error('Failed to connect to n8n: Possible CORS issue or server error');
+                    } finally {
+                        clearTimeout(timeoutId);
+                    }
 
-            const tags = [
-                currentTag1.value.trim(),
-                currentTag2.value.trim(),
-                currentTag3.value.trim()
-            ].concat(Array(3 - Math.min(3, [currentTag1.value.trim(), currentTag2.value.trim(), currentTag3.value.trim()].filter(t => t).length)).fill(''));
+                    console.log('n8n Response Status:', n8nResponse.status, n8nResponse.statusText);
+                    console.log('n8n Response Headers:', Object.fromEntries(n8nResponse.headers.entries()));
+                    const responseText = await n8nResponse.text();
+                    console.log('n8n Raw Response Body:', responseText);
 
-            const updatedData = {
-                desc: descriptionText,
-                tags: tags,
-                timestamp: firebase.firestore.FieldValue.serverTimestamp()
-            };
+                    let analysisResult;
+                    try {
+                        if (!responseText) {
+                            console.error('n8n response is empty');
+                            throw new Error('Empty response from n8n');
+                        }
+                        const parsed = JSON.parse(responseText);
+                        analysisResult = Array.isArray(parsed) ? parsed[0] : parsed;
+                        console.log('n8n Parsed JSON Response:', analysisResult);
+                    } catch (jsonError) {
+                        console.error('Failed to parse n8n response as JSON:', jsonError.message);
+                        throw new Error(`Invalid response from n8n: ${jsonError.message}`);
+                    }
 
-            db.collection('photos').doc(currentPhotoDocId).update(updatedData)
-                .then(() => {
+                    if (!n8nResponse.ok) {
+                        console.error('n8n request failed with status:', n8nResponse.status, 'Error:', analysisResult.error || 'Unknown error');
+                        throw new Error(`Failed to analyze image with n8n: ${analysisResult.error || 'Unknown error'}`);
+                    }
+
+                    if (!analysisResult.isAllowed) {
+                        console.log('Upload blocked by n8n:', analysisResult);
+                        errorMessage.textContent = 'Upload blocked: Image contains a human face or inappropriate content.';
+                        errorMessage.style.display = 'block';
+                        return;
+                    }
+
+                    console.log('Image allowed by n8n, proceeding with Firebase upload');
+                    const storageRef = storage.ref(`photos/${Date.now()}_${file.name}`);
+                    const snapshot = await storageRef.put(file);
+                    const downloadURL = await snapshot.ref.getDownloadURL();
+
+                    const photoData = {
+                        src: downloadURL,
+                        desc: descriptionText,
+                        tags: tags,
+                        userId: currentUser.uid,
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                    };
+
+                    const docRef = await db.collection('photos').add(photoData);
+                    currentPhotoDocId = docRef.id;
+
+                    console.log('Firebase upload successful, doc ID:', currentPhotoDocId);
+                    showNotification('Photo uploaded successfully!');
+                    photoInput.value = '';
+                    description.value = '';
+                    tag1.value = '';
+                    tag2.value = '';
+                    tag3.value = '';
+                    checkUserPhoto();
+                } catch (error) {
+                    console.error('Error during upload:', error.message, error.stack);
+                    showNotification(`Error during upload: ${error.message}`);
+                } finally {
+                    toggleLoading(false);
+                    console.log('Upload process completed');
+                }
+            });
+
+            // Update photo (replace existing photo, description, and tags)
+            updateButton.addEventListener('click', async () => {
+                if (!currentUser) {
+                    showNotification('Please log in to update a photo.');
+                    window.location.href = 'index.html';
+                    return;
+                }
+
+                if (!currentPhotoDocId) {
+                    showNotification('No photo to update.');
+                    return;
+                }
+
+                const descriptionText = currentDescription.value.trim();
+                if (!descriptionText) {
+                    showNotification('Please enter a description.');
+                    return;
+                }
+
+                const tags = [
+                    currentTag1.value.trim(),
+                    currentTag2.value.trim(),
+                    currentTag3.value.trim()
+                ].concat(Array(3 - Math.min(3, [currentTag1.value.trim(), currentTag2.value.trim(), currentTag3.value.trim()].filter(t => t).length)).fill(''));
+
+                const file = currentPhotoInput.files[0];
+                let downloadURL = currentPhotoUrl; // Keep existing URL if no new photo
+                let oldStoragePath = currentPhotoUrl ? getStoragePathFromUrl(currentPhotoUrl) : null;
+
+                toggleLoading(true);
+                errorMessage.textContent = '';
+                errorMessage.style.display = 'none';
+
+                try {
+                    if (file) {
+                        // Validate new photo with n8n
+                        const webhookUrl = 'https://missingface.app.n8n.cloud/webhook/6de446b5-0b18-4fb4-ba2d-f1ddbe41a179';
+                        console.log('Sending request to n8n webhook for update:', webhookUrl);
+
+                        const formData = new FormData();
+                        formData.append('file', file);
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 10000);
+                        let n8nResponse;
+                        try {
+                            n8nResponse = await fetch(webhookUrl, {
+                                method: 'POST',
+                                body: formData,
+                                signal: controller.signal
+                            });
+                        } catch (fetchError) {
+                            if (fetchError.name === 'AbortError') {
+                                console.error('n8n request timed out after 10 seconds');
+                                throw new Error('Request to n8n timed out');
+                            }
+                            console.error('n8n fetch error:', fetchError.message);
+                            throw new Error('Failed to connect to n8n: Possible CORS issue or server error');
+                        } finally {
+                            clearTimeout(timeoutId);
+                        }
+
+                        console.log('n8n Response Status:', n8nResponse.status, n8nResponse.statusText);
+                        console.log('n8n Response Headers:', Object.fromEntries(n8nResponse.headers.entries()));
+                        const responseText = await n8nResponse.text();
+                        console.log('n8n Raw Response Body:', responseText);
+
+                        let analysisResult;
+                        try {
+                            if (!responseText) {
+                                console.error('n8n response is empty');
+                                throw new Error('Empty response from n8n');
+                            }
+                            const parsed = JSON.parse(responseText);
+                            analysisResult = Array.isArray(parsed) ? parsed[0] : parsed;
+                            console.log('n8n Parsed JSON Response:', analysisResult);
+                        } catch (jsonError) {
+                            console.error('Failed to parse n8n response as JSON:', jsonError.message);
+                            throw new Error(`Invalid response from n8n: ${jsonError.message}`);
+                        }
+
+                        if (!n8nResponse.ok) {
+                            console.error('n8n request failed with status:', n8nResponse.status, 'Error:', analysisResult.error || 'Unknown error');
+                            throw new Error(`Failed to analyze image with n8n: ${analysisResult.error || 'Unknown error'}`);
+                        }
+
+                        if (!analysisResult.isAllowed) {
+                            console.log('Update blocked by n8n:', analysisResult);
+                            errorMessage.textContent = 'Update blocked: Image contains a human face or inappropriate content.';
+                            errorMessage.style.display = 'block';
+                            return;
+                        }
+
+                        console.log('Image allowed by n8n, proceeding with Firebase upload');
+                        const storageRef = storage.ref(`photos/${Date.now()}_${file.name}`);
+                        const snapshot = await storageRef.put(file);
+                        downloadURL = await snapshot.ref.getDownloadURL();
+                    }
+
+                    const updatedData = {
+                        src: downloadURL || placeholderImage,
+                        desc: descriptionText,
+                        tags: tags,
+                        userId: currentUser.uid,
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                    };
+
+                    await db.collection('photos').doc(currentPhotoDocId).set(updatedData, { merge: false });
+
+                    // Delete old photo from Storage if a new one was uploaded
+                    if (file && oldStoragePath) {
+                        try {
+                            await storage.ref(oldStoragePath).delete();
+                            console.log('Old photo deleted from Storage:', oldStoragePath);
+                        } catch (deleteError) {
+                            console.warn('Failed to delete old photo from Storage:', deleteError.message);
+                            // Continue despite deletion failure to avoid blocking update
+                        }
+                    }
+
+                    console.log('Firebase update successful, doc ID:', currentPhotoDocId);
                     showNotification('Photo details updated successfully!');
-                })
-                .catch(error => {
-                    console.error('Error updating photo:', error.message, error.code);
-                    showNotification('Error updating photo details. Check console for details.');
-                });
-        });
+                    currentPhotoInput.value = '';
+                    currentPhoto.src = downloadURL || placeholderImage;
+                    currentPhotoUrl = downloadURL;
+                    checkUserPhoto();
+                } catch (error) {
+                    console.error('Error during update:', error.message, error.stack);
+                    showNotification(`Error during update: ${error.message}`);
+                } finally {
+                    toggleLoading(false);
+                    console.log('Update process completed');
+                }
+            });
 
-        // Initial check for session photo
-        checkSessionPhoto();
+            // Initial check for user photo (will be triggered after auth state change)
+        });
     </script>
 </body>
 </html>
