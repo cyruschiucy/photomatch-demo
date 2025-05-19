@@ -1,43 +1,4 @@
-<script type="text/javascript">
-        var gk_isXlsx = false;
-        var gk_xlsxFileLookup = {};
-        var gk_fileData = {};
-        function filledCell(cell) {
-          return cell !== '' && cell != null;
-        }
-        function loadFileData(filename) {
-        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
-            try {
-                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
-                var firstSheetName = workbook.SheetNames[0];
-                var worksheet = workbook.Sheets[firstSheetName];
-
-                // Convert sheet to JSON to filter blank rows
-                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
-                // Filter out blank rows (rows where all cells are empty, null, or undefined)
-                var filteredData = jsonData.filter(row => row.some(filledCell));
-
-                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
-                var headerRowIndex = filteredData.findIndex((row, index) =>
-                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
-                );
-                // Fallback
-                if (headerRowIndex === -1 || headerRowIndex > 25) {
-                  headerRowIndex = 0;
-                }
-
-                // Convert filtered JSON back to CSV
-                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
-                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
-                return csv;
-            } catch (e) {
-                console.error(e);
-                return "";
-            }
-        }
-        return gk_fileData[filename] || "";
-        }
-        </script><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -86,6 +47,12 @@
             font-size: 0.75rem;
             color: #6b7280;
         }
+        .no-chats {
+            text-align: center;
+            color: #6b7280;
+            padding: 2rem;
+            font-size: 1rem;
+        }
         .nav-bar {
             position: fixed;
             bottom: 0;
@@ -120,6 +87,7 @@
             .chat-desc { font-size: 1.125rem; }
             .chat-last-message { font-size: 1rem; }
             .chat-time { font-size: 0.875rem; }
+            .no-chats { font-size: 1.125rem; padding: 3rem; }
             .nav-btn { font-size: 0.875rem; }
             .nav-btn i { font-size: 1.75rem; }
         }
@@ -168,7 +136,7 @@
                 apiKey: "AIzaSyCuDzchHx0AhrDzmnNjQ6f0YpwKhPpUqo0",
                 authDomain: "photomatch-demo.firebaseapp.com",
                 projectId: "photomatch-demo",
-                storageBucket: "photomatch-demo.firebasestorage.app",
+                storageBucket: "photomatch-demo firebasestorage.app",
                 messagingSenderId: "138957187291",
                 appId: "1:138957187291:web:8717b276b2d24a121344fe",
                 measurementId: "G-E4C40CW3N3"
@@ -192,7 +160,7 @@
                 } else {
                     navProfile.querySelector('span').textContent = 'Login';
                     navProfile.setAttribute('href', 'index.html');
-                    chatList.innerHTML = '<p class="text-center text-gray-500 p-4">Please log in to view your chats.</p>';
+                    chatList.innerHTML = '<p class="no-chats">Please log in to view your chats.</p>';
                 }
             });
 
@@ -204,7 +172,7 @@
                     .onSnapshot(async snapshot => {
                         chatList.innerHTML = '';
                         if (snapshot.empty) {
-                            chatList.innerHTML = '<p class="text-center text-gray-500 p-4">No chats available.</p>';
+                            chatList.innerHTML = '<p class="no-chats">No chats available. Start a conversation in Explore!</p>';
                             return;
                         }
 
@@ -240,7 +208,11 @@
                         }
                     }, error => {
                         console.error('Error fetching chats:', error);
-                        displayError('Failed to load chats. Please try again.');
+                        let errorMessage = 'Failed to load chats. Please try again.';
+                        if (error.code === 'permission-denied') {
+                            errorMessage = 'Permission denied. Please check your login status or contact support.';
+                        }
+                        displayError(errorMessage);
                     });
             }
 
@@ -285,7 +257,7 @@
                 if (diff < 60) return `${Math.floor(diff)}s ago`;
                 if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
                 if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-                return date.toLocaleDateString();
+                return date.toLocaleString('en-US', { hour: '2-digit', minute: '2-digit' });
             }
 
             function displayError(message) {
