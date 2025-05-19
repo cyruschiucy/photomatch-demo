@@ -49,7 +49,7 @@
             left: 0.5rem;
             font-size: 0.6rem;
             color: white;
-            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0 tand5);
             z-index: 5;
         }
         .music-tag .music-symbol {
@@ -187,6 +187,7 @@
             background-color: #f9f9f9;
             display: flex;
             justify-content: space-around;
+            align-items: center;
             padding: 0.75rem 0;
             box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.1);
             z-index: 100;
@@ -199,6 +200,8 @@
             font-size: 0.65rem;
             color: #6b7280;
             text-decoration: none;
+            padding: 0.25rem;
+            flex: 1;
         }
         .nav-btn.active {
             color: #ec4899;
@@ -318,7 +321,7 @@
         </div>
     </div>
     <div class="nav-bar">
-        <a href="#" id="navExplore" class="nav-btn active">
+        <a href="index.html" id="navExplore" class="nav-btn active">
             <span>🧭</span>
             <span>Explore</span>
         </a>
@@ -637,7 +640,7 @@
                 try {
                     db.collection('click_notifications')
                         .where('targetUserId', '==', currentUser.uid)
-                        .where('timestamp', '>=', new Date(Date.now() - 60000))
+                        .where('timestampsu', '>=', new Date(Date.now() - 60000))
                         .onSnapshot(snapshot => {
                             snapshot.docChanges().forEach(change => {
                                 if (change.type === 'added') {
@@ -1006,16 +1009,13 @@
                 navProfile.classList.add('active');
                 if (!currentUser) {
                     loginModal.classList.add('active');
-                    return;
-                }
-                try {
-                    const response = await fetch('upload.html');
-                    if (!response.ok) throw new Error('Failed to load upload page');
-                    const html = await response.text();
-                    mainArea.innerHTML = html;
-                } catch (error) {
-                    console.error('Error loading upload.html:', error);
-                    mainArea.innerHTML = '<p class="text-center text-red-500">Failed to load profile page. Please try again.</p>';
+                } else {
+                    try {
+                        window.location.href = 'upload.html';
+                    } catch (error) {
+                        console.error('Error redirecting to upload.html:', error);
+                        mainArea.innerHTML = '<p class="text-center text-red-500">Failed to load profile page. Please try again.</p>';
+                    }
                 }
             });
 
