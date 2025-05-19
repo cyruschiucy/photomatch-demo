@@ -1,0 +1,320 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat List</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .chat-item {
+            display: flex;
+            align-items: center;
+            padding: 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .chat-item:hover {
+            background-color: #f3f4f6;
+        }
+        .chat-circle {
+            width: 3rem;
+            height: 3rem;
+            border-radius: 50%;
+            background-color: #ec4899;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-right: 1rem;
+        }
+        .chat-info {
+            flex: 1;
+        }
+        .chat-desc {
+            font-size: 1rem;
+            font-weight: medium;
+            color: #1f2937;
+        }
+        .chat-last-message {
+            font-size: 0.875rem;
+            color: #6b7280;
+            margin-top: 0.25rem;
+        }
+        .chat-time {
+            font-size: 0.75rem;
+            color: #6b7280;
+        }
+        .nav-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-color: #f9f9f9;
+            display: flex;
+            justify-content: space-around;
+            padding: 0.5rem 0;
+            box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.1);
+            z-index: 100;
+        }
+        .nav-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            font-size: 0.75rem;
+            color: #6b7280;
+            text-decoration: none;
+        }
+        .nav-btn.active {
+            color: #ec4899;
+        }
+        .nav-btn i {
+            font-size: 1.5rem;
+            margin-bottom: 0.25rem;
+        }
+        @media (min-width: 641px) {
+            .chat-item { padding: 1.5rem; }
+            .chat-circle { width: 3.5rem; height: 3.5rem; font-size: 1.75rem; }
+            .chat-desc { font-size: 1.125rem; }
+            .chat-last-message { font-size: 1rem; }
+            .chat-time { font-size: 0.875rem; }
+            .nav-btn { font-size: 0.875rem; }
+            .nav-btn i { font-size: 1.75rem; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex flex-col min-h-screen">
+    <div class="container mx-auto p-6 flex-1">
+        <div class="mb-6 text-center">
+            <p class="text-lg font-medium">Chat List</p>
+        </div>
+        <div id="chatList" class="bg-white rounded-lg shadow"></div>
+    </div>
+    <div class="nav-bar">
+        <a href="index.html" id="navExplore" class="nav-btn">
+            <i class="fas fa-compass"></i>
+            <span>Explore</span>
+        </a>
+        <a href="upload.html" id="navProfile" class="nav-btn">
+            <i class="fas fa-user"></i>
+            <span>My Profile</span>
+        </a>
+        <a href="#" id="navChat" class="nav-btn active">
+            <i class="fas fa-comment"></i>
+            <span>Chat</span>
+        </a>
+        <a href="#" id="navSettings" class="nav-btn">
+            <i class="fas fa-cog"></i>
+            <span>Settings</span>
+        </a>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            if (typeof firebase === 'undefined') {
+                console.error('Firebase SDK not loaded');
+                displayError('Failed to load Firebase. Please check your internet connection.');
+                return;
+            }
+
+            const firebaseConfig = {
+                apiKey: "AIzaSyCuDzchHx0AhrDzmnNjQ6f0YpwKhPpUqo0",
+                authDomain: "photomatch-demo.firebaseapp.com",
+                projectId: "photomatch-demo",
+                storageBucket: "photomatch-demo.firebasestorage.app",
+                messagingSenderId: "138957187291",
+                appId: "1:138957187291:web:8717b276b2d24a121344fe",
+                measurementId: "G-E4C40CW3N3"
+            };
+            const app = firebase.initializeApp(firebaseConfig);
+            const auth = firebase.auth();
+            const db = firebase.firestore();
+            const chatList = document.getElementById('chatList');
+            const navExplore = document.getElementById('navExplore');
+            const navProfile = document.getElementById('navProfile');
+            const navChat = document.getElementById('navChat');
+            const navSettings = document.getElementById('navSettings');
+            let currentUser = null;
+
+            auth.onAuthStateChanged(user => {
+                currentUser = user;
+                if (user) {
+                    navProfile.querySelector('span').textContent = 'My Profile';
+                    navProfile.setAttribute('href', 'upload.html');
+                    fetchChats();
+                } else {
+                    navProfile.querySelector('span').textContent = 'Login';
+                    navProfile.setAttribute('href', 'index.html');
+                    chatList.innerHTML = '<p class="text-center text-gray-500 p-4">Please log in to view your chats.</p>';
+                }
+            });
+
+            function fetchChats() {
+                if (!currentUser) return;
+                db.collection('chats')
+                    .where('participants', 'array-contains', currentUser.uid)
+                    .orderBy('lastMessageAt', 'desc')
+                    .onSnapshot(async snapshot => {
+                        chatList.innerHTML = '';
+                        if (snapshot.empty) {
+                            chatList.innerHTML = '<p class="text-center text-gray-500 p-4">No chats available.</p>';
+                            return;
+                        }
+
+                        for (const doc of snapshot.docs) {
+                            const chatData = doc.data();
+                            const chatId = doc.id;
+                            const otherUserId = chatData.participants.find(id => id !== currentUser.uid);
+                            const lastMessage = chatData.lastMessage || 'No messages yet';
+                            const lastMessageAt = chatData.lastMessageAt ? formatTimestamp(chatData.lastMessageAt.toDate()) : '';
+
+                            const desc = await getUserDescription(chatId, otherUserId);
+                            const firstDigit = extractFirstDigit(desc) || '?';
+
+                            const chatItem = document.createElement('div');
+                            chatItem.className = 'chat-item';
+                            chatItem.innerHTML = `
+                                <div class="chat-circle">${firstDigit}</div>
+                                <div class="chat-info">
+                                    <div class="chat-desc">${desc || 'Someone'}</div>
+                                    <div class="chat-last-message">${lastMessage}</div>
+                                </div>
+                                <div class="chat-time">${lastMessageAt}</div>
+                            `;
+                            chatItem.addEventListener('click', () => {
+                                const params = new URLSearchParams({
+                                    chatId: chatId,
+                                    otherUserId: otherUserId,
+                                    desc: encodeURIComponent(desc || 'Someone')
+                                });
+                                window.location.href = `chat.html?${params.toString()}`;
+                            });
+                            chatList.appendChild(chatItem);
+                        }
+                    }, error => {
+                        console.error('Error fetching chats:', error);
+                        displayError('Failed to load chats. Please try again.');
+                    });
+            }
+
+            async function getUserDescription(chatId, otherUserId) {
+                try {
+                    const confirmationSnapshot = await db.collection('chat_confirmations')
+                        .where('chatId', '==', chatId)
+                        .limit(1)
+                        .get();
+                    if (!confirmationSnapshot.empty) {
+                        const confirmationData = confirmationSnapshot.docs[0].data();
+                        if (confirmationData.clickerUserId === otherUserId) {
+                            return confirmationData.clickerDesc;
+                        } else if (confirmationData.targetUserId === otherUserId) {
+                            return confirmationData.targetDesc;
+                        }
+                    }
+                    const photoSnapshot = await db.collection('photos')
+                        .where('userId', '==', otherUserId)
+                        .orderBy('timestamp', 'desc')
+                        .limit(1)
+                        .get();
+                    if (!photoSnapshot.empty) {
+                        return photoSnapshot.docs[0].data().desc || 'Someone';
+                    }
+                    return 'Someone';
+                } catch (error) {
+                    console.error('Error fetching user description:', error);
+                    return 'Someone';
+                }
+            }
+
+            function extractFirstDigit(text) {
+                if (!text) return null;
+                const match = text.match(/\d/);
+                return match ? match[0] : null;
+            }
+
+            function formatTimestamp(date) {
+                const now = new Date();
+                const diff = (now - date) / 1000; // Difference in seconds
+                if (diff < 60) return `${Math.floor(diff)}s ago`;
+                if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+                if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+                return date.toLocaleDateString();
+            }
+
+            function displayError(message) {
+                chatList.innerHTML = `<p class="text-center text-red-500 p-4">${message}</p>`;
+            }
+
+            navExplore.addEventListener('click', () => {
+                document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+                navExplore.classList.add('active');
+            });
+
+            navProfile.addEventListener('click', () => {
+                document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+                navProfile.classList.add('active');
+            });
+
+            navChat.addEventListener('click', (e) => {
+                e.preventDefault();
+                document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+                navChat.classList.add('active');
+            });
+
+            navSettings.addEventListener('click', (e) => {
+                e.preventDefault();
+                document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+                navSettings.classList.add('active');
+                alert('Settings feature coming soon!');
+            });
+        });
+    </script>
+</body>
+</html>
