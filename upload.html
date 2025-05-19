@@ -154,6 +154,7 @@
             let currentPhotoDocId = null;
             let currentUser = null;
             let currentPhotoUrl = null;
+            const BYPASS_N8N = false; // Set to true for testing to bypass n8n validation
 
             const userInfo = document.getElementById('userInfo');
             const uploadForm = document.getElementById('uploadForm');
@@ -215,6 +216,71 @@
                     console.error('Error parsing Storage URL:', error);
                     return null;
                 }
+            }
+
+            // Validate photo with n8n webhook
+            async function validatePhotoWithN8n(file) {
+                if (BYPASS_N8N) {
+                    console.warn('Bypassing n8n validation for testing');
+                    return { isAllowed: true };
+                }
+
+                const webhookUrl = 'https://missingface.app.n8n.cloud/webhook/6de446b5-0b18-4fb4-ba2d-f1ddbe41a179';
+                console.log('Sending request to n8n webhook:', webhookUrl, 'File size:', file.size, 'File type:', file.type);
+
+                const formData = new FormData();
+                formData.append('file', file);
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => {
+                    controller.abort();
+                    console.error('n8n request timed out after 20 seconds');
+                }, 20000); // Increased to 20 seconds
+
+                let n8nResponse;
+                try {
+                    n8nResponse = await fetch(webhookUrl, {
+                        method: 'POST',
+                        body: formData,
+                        signal: controller.signal,
+                        headers: {
+                            'Accept': 'application/json'
+                        }
+                    });
+                } catch (fetchError) {
+                    if (fetchError.name === 'AbortError') {
+                        throw new Error('Request to n8n timed out after 20 seconds');
+                    }
+                    console.error('n8n fetch error:', fetchError.message, fetchError.stack);
+                    throw new Error(`Failed to connect to n8n: ${fetchError.message}`);
+                } finally {
+                    clearTimeout(timeoutId);
+                }
+
+                console.log('n8n Response Status:', n8nResponse.status, n8nResponse.statusText);
+                console.log('n8n Response Headers:', Object.fromEntries(n8nResponse.headers.entries()));
+                const responseText = await n8nResponse.text();
+                console.log('n8n Raw Response Body:', responseText);
+
+                let analysisResult;
+                try {
+                    if (!responseText) {
+                        console.error('n8n response is empty');
+                        throw new Error('Empty response from n8n');
+                    }
+                    const parsed = JSON.parse(responseText);
+                    analysisResult = Array.isArray(parsed) ? parsed[0] : parsed;
+                    console.log('n8n Parsed JSON Response:', analysisResult);
+                } catch (jsonError) {
+                    console.error('Failed to parse n8n response as JSON:', jsonError.message, responseText);
+                    throw new Error(`Invalid response from n8n: ${jsonError.message}`);
+                }
+
+                if (!n8nResponse.ok) {
+                    console.error('n8n request failed with status:', n8nResponse.status, 'Error:', analysisResult.error || 'Unknown error');
+                    throw new Error(`Failed to analyze image with n8n: ${analysisResult.error || 'Unknown error'}`);
+                }
+
+                return analysisResult;
             }
 
             // Check for existing photo for the authenticated user
@@ -282,54 +348,7 @@
                 errorMessage.style.display = 'none';
 
                 try {
-                    const webhookUrl = 'https://missingface.app.n8n.cloud/webhook/6de446b5-0b18-4fb4-ba2d-f1ddbe41a179';
-                    console.log('Sending request to n8n webhook:', webhookUrl);
-
-                    const formData = new FormData();
-                    formData.append('file', file);
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 10000);
-                    let n8nResponse;
-                    try {
-                        n8nResponse = await fetch(webhookUrl, {
-                            method: 'POST',
-                            body: formData,
-                            signal: controller.signal
-                        });
-                    } catch (fetchError) {
-                        if (fetchError.name === 'AbortError') {
-                            console.error('n8n request timed out after 10 seconds');
-                            throw new Error('Request to n8n timed out');
-                        }
-                        console.error('n8n fetch error:', fetchError.message);
-                        throw new Error('Failed to connect to n8n: Possible CORS issue or server error');
-                    } finally {
-                        clearTimeout(timeoutId);
-                    }
-
-                    console.log('n8n Response Status:', n8nResponse.status, n8nResponse.statusText);
-                    console.log('n8n Response Headers:', Object.fromEntries(n8nResponse.headers.entries()));
-                    const responseText = await n8nResponse.text();
-                    console.log('n8n Raw Response Body:', responseText);
-
-                    let analysisResult;
-                    try {
-                        if (!responseText) {
-                            console.error('n8n response is empty');
-                            throw new Error('Empty response from n8n');
-                        }
-                        const parsed = JSON.parse(responseText);
-                        analysisResult = Array.isArray(parsed) ? parsed[0] : parsed;
-                        console.log('n8n Parsed JSON Response:', analysisResult);
-                    } catch (jsonError) {
-                        console.error('Failed to parse n8n response as JSON:', jsonError.message);
-                        throw new Error(`Invalid response from n8n: ${jsonError.message}`);
-                    }
-
-                    if (!n8nResponse.ok) {
-                        console.error('n8n request failed with status:', n8nResponse.status, 'Error:', analysisResult.error || 'Unknown error');
-                        throw new Error(`Failed to analyze image with n8n: ${analysisResult.error || 'Unknown error'}`);
-                    }
+                    const analysisResult = await validatePhotoWithN8n(file);
 
                     if (!analysisResult.isAllowed) {
                         console.log('Upload blocked by n8n:', analysisResult);
@@ -364,7 +383,34 @@
                     checkUserPhoto();
                 } catch (error) {
                     console.error('Error during upload:', error.message, error.stack);
-                    showNotification(`Error during upload: ${error.message}`);
+                    if (error.message.includes('n8n')) {
+                        showNotification('Image validation failed due to n8n timeout. Please try again or contact support.');
+                        // Optional: Allow upload to proceed despite n8n failure (uncomment for testing)
+                        /*
+                        console.warn('Proceeding with upload despite n8n failure');
+                        const storageRef = storage.ref(`photos/${Date.now()}_${file.name}`);
+                        const snapshot = await storageRef.put(file);
+                        const downloadURL = await snapshot.ref.getDownloadURL();
+                        const photoData = {
+                            src: downloadURL,
+                            desc: descriptionText,
+                            tags: tags,
+                            userId: currentUser.uid,
+                            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                        };
+                        const docRef = await db.collection('photos').add(photoData);
+                        currentPhotoDocId = docRef.id;
+                        showNotification('Photo uploaded successfully (validation bypassed due to n8n timeout).');
+                        photoInput.value = '';
+                        description.value = '';
+                        tag1.value = '';
+                        tag2.value = '';
+                        tag3.value = '';
+                        checkUserPhoto();
+                        */
+                    } else {
+                        showNotification(`Error during upload: ${error.message}`);
+                    }
                 } finally {
                     toggleLoading(false);
                     console.log('Upload process completed');
@@ -397,7 +443,7 @@
                 ].concat(Array(3 - Math.min(3, [currentTag1.value.trim(), currentTag2.value.trim(), currentTag3.value.trim()].filter(t => t).length)).fill(''));
 
                 const file = currentPhotoInput.files[0];
-                let downloadURL = currentPhotoUrl; // Keep existing URL if no new photo
+                let downloadURL = currentPhotoUrl;
                 let oldStoragePath = currentPhotoUrl ? getStoragePathFromUrl(currentPhotoUrl) : null;
 
                 toggleLoading(true);
@@ -406,55 +452,7 @@
 
                 try {
                     if (file) {
-                        // Validate new photo with n8n
-                        const webhookUrl = 'https://missingface.app.n8n.cloud/webhook/6de446b5-0b18-4fb4-ba2d-f1ddbe41a179';
-                        console.log('Sending request to n8n webhook for update:', webhookUrl);
-
-                        const formData = new FormData();
-                        formData.append('file', file);
-                        const controller = new AbortController();
-                        const timeoutId = setTimeout(() => controller.abort(), 10000);
-                        let n8nResponse;
-                        try {
-                            n8nResponse = await fetch(webhookUrl, {
-                                method: 'POST',
-                                body: formData,
-                                signal: controller.signal
-                            });
-                        } catch (fetchError) {
-                            if (fetchError.name === 'AbortError') {
-                                console.error('n8n request timed out after 10 seconds');
-                                throw new Error('Request to n8n timed out');
-                            }
-                            console.error('n8n fetch error:', fetchError.message);
-                            throw new Error('Failed to connect to n8n: Possible CORS issue or server error');
-                        } finally {
-                            clearTimeout(timeoutId);
-                        }
-
-                        console.log('n8n Response Status:', n8nResponse.status, n8nResponse.statusText);
-                        console.log('n8n Response Headers:', Object.fromEntries(n8nResponse.headers.entries()));
-                        const responseText = await n8nResponse.text();
-                        console.log('n8n Raw Response Body:', responseText);
-
-                        let analysisResult;
-                        try {
-                            if (!responseText) {
-                                console.error('n8n response is empty');
-                                throw new Error('Empty response from n8n');
-                            }
-                            const parsed = JSON.parse(responseText);
-                            analysisResult = Array.isArray(parsed) ? parsed[0] : parsed;
-                            console.log('n8n Parsed JSON Response:', analysisResult);
-                        } catch (jsonError) {
-                            console.error('Failed to parse n8n response as JSON:', jsonError.message);
-                            throw new Error(`Invalid response from n8n: ${jsonError.message}`);
-                        }
-
-                        if (!n8nResponse.ok) {
-                            console.error('n8n request failed with status:', n8nResponse.status, 'Error:', analysisResult.error || 'Unknown error');
-                            throw new Error(`Failed to analyze image with n8n: ${analysisResult.error || 'Unknown error'}`);
-                        }
+                        const analysisResult = await validatePhotoWithN8n(file);
 
                         if (!analysisResult.isAllowed) {
                             console.log('Update blocked by n8n:', analysisResult);
@@ -479,14 +477,12 @@
 
                     await db.collection('photos').doc(currentPhotoDocId).set(updatedData, { merge: false });
 
-                    // Delete old photo from Storage if a new one was uploaded
                     if (file && oldStoragePath) {
                         try {
                             await storage.ref(oldStoragePath).delete();
                             console.log('Old photo deleted from Storage:', oldStoragePath);
                         } catch (deleteError) {
                             console.warn('Failed to delete old photo from Storage:', deleteError.message);
-                            // Continue despite deletion failure to avoid blocking update
                         }
                     }
 
@@ -498,7 +494,41 @@
                     checkUserPhoto();
                 } catch (error) {
                     console.error('Error during update:', error.message, error.stack);
-                    showNotification(`Error during update: ${error.message}`);
+                    if (error.message.includes('n8n')) {
+                        showNotification('Image validation failed due to n8n timeout. Please try again or contact support.');
+                        // Optional: Allow update to proceed despite n8n failure (uncomment for testing)
+                        /*
+                        if (file) {
+                            console.warn('Proceeding with update despite n8n failure');
+                            const storageRef = storage.ref(`photos/${Date.now()}_${file.name}`);
+                            const snapshot = await storageRef.put(file);
+                            downloadURL = await snapshot.ref.getDownloadURL();
+                            if (oldStoragePath) {
+                                try {
+                                    await storage.ref(oldStoragePath).delete();
+                                    console.log('Old photo deleted from Storage:', oldStoragePath);
+                                } catch (deleteError) {
+                                    console.warn('Failed to delete old photo from Storage:', deleteError.message);
+                                }
+                            }
+                        }
+                        const updatedData = {
+                            src: downloadURL || placeholderImage,
+                            desc: descriptionText,
+                            tags: tags,
+                            userId: currentUser.uid,
+                            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                        };
+                        await db.collection('photos').doc(currentPhotoDocId).set(updatedData, { merge: false });
+                        showNotification('Photo details updated successfully (validation bypassed due to n8n timeout).');
+                        currentPhotoInput.value = '';
+                        currentPhoto.src = downloadURL || placeholderImage;
+                        currentPhotoUrl = downloadURL;
+                        checkUserPhoto();
+                        */
+                    } else {
+                        showNotification(`Error during update: ${error.message}`);
+                    }
                 } finally {
                     toggleLoading(false);
                     console.log('Update process completed');
