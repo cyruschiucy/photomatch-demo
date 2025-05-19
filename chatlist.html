@@ -216,7 +216,7 @@
             }
 
             async function getUserDescription(chatId, otherUserId) {
-                console.log('Fetching description for chatId:', chatId, 'otherUserId:', otherUserId);
+                console.log('Fetching description for chatId:', chatId, 'otherUserId:', otherUserId, 'Current user UID:', currentUser.uid);
                 try {
                     const confirmationSnapshot = await db.collection('chat_confirmations')
                         .where('chatId', '==', chatId)
@@ -224,6 +224,7 @@
                         .get();
                     if (!confirmationSnapshot.empty) {
                         const confirmationData = confirmationSnapshot.docs[0].data();
+                        console.log('Confirmation data:', confirmationData);
                         if (confirmationData.clickerUserId === otherUserId) {
                             return confirmationData.clickerDesc;
                         } else if (confirmationData.targetUserId === otherUserId) {
