@@ -101,13 +101,6 @@
 </head>
 <body class="bg-gray-100 flex flex-col min-h-screen">
     <div class="container mx-auto flex-1">
-        <h1 class="text-2xl font-bold mb-6 text-center">Upload a Photo</h1>
-        
-        <!-- User Info -->
-        <div class="mb-6 text-center">
-            <p id="userInfo" class="text-lg font-medium"></p>
-        </div>
-
         <!-- Upload Form -->
         <div id="uploadForm" class="bg-white p-6 rounded-lg shadow-md mb-6">
             <div class="mb-4">
@@ -128,6 +121,11 @@
                 </div>
             </div>
             <button id="uploadButton" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">Upload</button>
+        </div>
+
+        <!-- User Email Display -->
+        <div id="userEmail" class="mb-6 text-center hidden">
+            <p class="text-lg font-medium"></p>
         </div>
 
         <!-- Current Photo Section -->
@@ -215,7 +213,7 @@
             let currentPhotoUrl = null;
             const BYPASS_N8N = false;
 
-            const userInfo = document.getElementById('userInfo');
+            const userEmail = document.getElementById('userEmail');
             const uploadForm = document.getElementById('uploadForm');
             const photoInput = document.getElementById('photoInput');
             const description = document.getElementById('description');
@@ -241,11 +239,13 @@
             auth.onAuthStateChanged(user => {
                 currentUser = user;
                 if (user) {
-                    userInfo.textContent = `Your User ID: ${user.uid}`;
+                    userEmail.querySelector('p').textContent = `Email: ${user.email || 'No email available'}`;
+                    userEmail.classList.remove('hidden');
                     checkUserPhoto();
                     navProfile.querySelector('span:last-child').textContent = 'My Profile';
                     navProfile.setAttribute('href', 'upload.html');
                 } else {
+                    userEmail.classList.add('hidden');
                     navProfile.querySelector('span:last-child').textContent = 'Login';
                     navProfile.setAttribute('href', 'index.html');
                     window.location.href = 'index.html';
