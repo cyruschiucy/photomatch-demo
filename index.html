@@ -326,7 +326,7 @@
             <i class="fas fa-user"></i>
             <span>Login</span>
         </a>
-        <a href="#" id="navChat" class="nav-btn">
+        <a href="chatlist.html" id="navChat" class="nav-btn">
             <i class="fas fa-comment"></i>
             <span>Chat</span>
         </a>
@@ -364,12 +364,12 @@
             const placeholderImage = 'https://firebasestorage.googleapis.com/v0/b/photomatch-demo.firebasestorage.app/o/photos%2Fplaceholder.jpg?alt=media&token=342ac66c-eb2d-4b60-9b8a-90bdf1231ec0';
 
             let images = [];
+            let photoContainer = document.getElementById('photoContainer');
+            let navButtons = document.getElementById('navButtons');
+            let skipButton = document.getElementById('skipButton');
             const displayModeSelect = document.getElementById('displayMode');
             const descPositionSelect = document.getElementById('descPosition');
-            const photoContainer = document.getElementById('photoContainer');
             const mainArea = document.getElementById('mainArea');
-            const navButtons = document.getElementById('navButtons');
-            const skipButton = document.getElementById('skipButton');
             const pullToRefresh = document.getElementById('pullToRefresh');
             const loginModal = document.getElementById('loginModal');
             const emailInput = document.getElementById('emailInput');
@@ -831,6 +831,24 @@
                 const mode = displayModeSelect.value;
                 let activePhotoDiv = null;
                 let activeId = null;
+                if (!photoContainer) {
+                    photoContainer = document.getElementById('photoContainer');
+                }
+                if (!navButtons) {
+                    navButtons = document.getElementById('navButtons');
+                }
+                if (!skipButton) {
+                    skipButton = document.getElementById('skipButton');
+                    if (skipButton) {
+                        skipButton.addEventListener('click', () => {
+                            const availableIndices = images
+                                .map((_, i) => i)
+                                .filter(i => i !== currentImageIndex);
+                            currentImageIndex = availableIndices[Math.floor(Math.random() * availableIndices.length)] || 0;
+                            updateDisplay();
+                        });
+                    }
+                }
                 photoContainer.innerHTML = '';
                 if (mode === 'four' && timers.size > 0) {
                     activeId = [...timers.keys()][0];
@@ -950,14 +968,6 @@
                 lastScrollY = currentScrollY;
             });
 
-            skipButton.addEventListener('click', () => {
-                const availableIndices = images
-                    .map((_, i) => i)
-                    .filter(i => i !== currentImageIndex);
-                currentImageIndex = availableIndices[Math.floor(Math.random() * availableIndices.length)] || 0;
-                updateDisplay();
-            });
-
             displayModeSelect.addEventListener('change', () => {
                 updateDisplay();
             });
@@ -974,6 +984,18 @@
                         <button id="skipButton" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600" aria-label="Skip to next photo">Skip</button>
                     </div>
                 `;
+                photoContainer = document.getElementById('photoContainer');
+                navButtons = document.getElementById('navButtons');
+                skipButton = document.getElementById('skipButton');
+                if (skipButton) {
+                    skipButton.addEventListener('click', () => {
+                        const availableIndices = images
+                            .map((_, i) => i)
+                            .filter(i => i !== currentImageIndex);
+                        currentImageIndex = availableIndices[Math.floor(Math.random() * availableIndices.length)] || 0;
+                        updateDisplay();
+                    });
+                }
                 document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
                 navExplore.classList.add('active');
                 updateDisplay();
@@ -999,10 +1021,8 @@
             });
 
             navChat.addEventListener('click', (e) => {
-                e.preventDefault();
                 document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
                 navChat.classList.add('active');
-                alert('Chat feature coming soon!');
             });
 
             navSettings.addEventListener('click', (e) => {
