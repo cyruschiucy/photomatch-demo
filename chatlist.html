@@ -61,7 +61,8 @@
             background-color: #f9f9f9;
             display: flex;
             justify-content: space-around;
-            padding: 0.5rem 0;
+            align-items: center;
+            padding: 0.75rem 0;
             box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.1);
             z-index: 100;
         }
@@ -70,15 +71,24 @@
             flex-direction: column;
             align-items: center;
             text-align: center;
-            font-size: 0.75rem;
+            font-size: 0.65rem;
             color: #6b7280;
             text-decoration: none;
+            padding: 0.25rem;
+            flex: 1;
         }
         .nav-btn.active {
             color: #ec4899;
         }
-        .nav-btn span {
-            margin-top: 0.25rem;
+        .nav-btn span:first-child {
+            font-size: 1.25rem;
+            margin-bottom: 0.2rem;
+        }
+        .container {
+            max-height: calc(100vh - 4rem); /* Viewport height minus nav-bar height */
+            overflow-y: auto; /* Enable vertical scrolling */
+            padding: 1.5rem; /* Consistent with upload.html */
+            box-sizing: border-box;
         }
         @media (min-width: 641px) {
             .chat-item { padding: 1.5rem; }
@@ -87,13 +97,14 @@
             .chat-last-message { font-size: 1rem; }
             .chat-time { font-size: 0.875rem; }
             .no-chats { font-size: 1.125rem; padding: 3rem; }
-            .nav-btn { font-size: 0.875rem; }
-            .nav-btn span { margin-top: 0.375rem; }
+            .nav-btn { font-size: 0.75rem; }
+            .nav-btn span:first-child { font-size: 1.5rem; }
+            .container { max-height: calc(100vh - 5rem); } /* Adjust for larger nav-bar */
         }
     </style>
 </head>
 <body class="bg-gray-100 flex flex-col min-h-screen">
-    <div class="container mx-auto p-6 flex-1">
+    <div class="container mx-auto flex-1">
         <div class="mb-6 text-center">
             <p class="text-lg font-medium">Chat List</p>
         </div>
@@ -101,19 +112,19 @@
     </div>
     <div class="nav-bar">
         <a href="index.html" id="navExplore" class="nav-btn">
-            <span>🧭</span> <!-- Compass symbol -->
+            <span>🧭</span>
             <span>Explore</span>
         </a>
-        <a href="upload.html" id="navProfile" class="nav-btn">
-            <span>👤</span> <!-- Bust in silhouette symbol -->
-            <span>My Profile</span>
+        <a href="#" id="navProfile" class="nav-btn">
+            <span>👤</span>
+            <span>Login</span>
         </a>
-        <a href="#" id="navChat" class="nav-btn active">
-            <span>💬</span> <!-- Speech balloon symbol -->
+        <a href="chatlist.html" id="navChat" class="nav-btn active">
+            <span>💬</span>
             <span>Chat</span>
         </a>
         <a href="#" id="navSettings" class="nav-btn">
-            <span>⚙</span> <!-- Gear symbol -->
+            <span>⚙</span>
             <span>Settings</span>
         </a>
     </div>
@@ -153,11 +164,11 @@
                 currentUser = user;
                 console.log('Current user:', user ? user.uid : 'Not authenticated');
                 if (user) {
-                    navProfile.querySelector('span:nth-child(2)').textContent = 'My Profile';
+                    navProfile.querySelector('span:last-child').textContent = 'My Profile';
                     navProfile.setAttribute('href', 'upload.html');
                     fetchChats();
                 } else {
-                    navProfile.querySelector('span:nth-child(2)').textContent = 'Login';
+                    navProfile.querySelector('span:last-child').textContent = 'Login';
                     navProfile.setAttribute('href', 'index.html');
                     chatList.innerHTML = '<p class="no-chats">Please log in to view your chats.</p>';
                 }
@@ -265,20 +276,29 @@
                 chatList.innerHTML = `<p class="text-center text-red-500 p-4">${message}</p>`;
             }
 
-            navExplore.addEventListener('click', () => {
+            navExplore.addEventListener('click', (e) => {
+                e.preventDefault();
                 document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
                 navExplore.classList.add('active');
+                window.location.href = 'index.html';
             });
 
-            navProfile.addEventListener('click', () => {
+            navProfile.addEventListener('click', (e) => {
+                e.preventDefault();
                 document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
                 navProfile.classList.add('active');
+                if (!currentUser) {
+                    window.location.href = 'index.html';
+                } else {
+                    window.location.href = 'upload.html';
+                }
             });
 
             navChat.addEventListener('click', (e) => {
                 e.preventDefault();
                 document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
                 navChat.classList.add('active');
+                window.location.href = 'chatlist.html';
             });
 
             navSettings.addEventListener('click', (e) => {
