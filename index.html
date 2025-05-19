@@ -49,7 +49,7 @@
             left: 0.5rem;
             font-size: 0.6rem;
             color: white;
-            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0 tand5);
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
             z-index: 5;
         }
         .music-tag .music-symbol {
@@ -240,7 +240,7 @@
             background-color: #10b981;
             color: white;
             padding: 0.4rem 0.8rem;
-            border-radius: 0.25rem;
+            border-radius: 0.5rem;
             cursor: pointer;
             border: none;
             font-size: 0.875rem;
@@ -640,11 +640,12 @@
                 try {
                     db.collection('click_notifications')
                         .where('targetUserId', '==', currentUser.uid)
-                        .where('timestampsu', '>=', new Date(Date.now() - 60000))
+                        .where('timestamp', '>=', new Date(Date.now() - 300000)) // 5 minutes window
                         .onSnapshot(snapshot => {
                             snapshot.docChanges().forEach(change => {
                                 if (change.type === 'added') {
                                     const data = change.doc.data();
+                                    console.log('Received notification:', data); // Debugging
                                     showNotification(
                                         data.photoSrc,
                                         data.description,
