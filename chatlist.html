@@ -229,31 +229,52 @@
             async function getUserDescription(chatId, otherUserId) {
                 console.log('Fetching description for chatId:', chatId, 'otherUserId:', otherUserId, 'Current user UID:', currentUser.uid);
                 try {
+                    // Try chat_confirmations first
                     const confirmationSnapshot = await db.collection('chat_confirmations')
                         .where('chatId', '==', chatId)
                         .limit(1)
                         .get();
+                    
                     if (!confirmationSnapshot.empty) {
                         const confirmationData = confirmationSnapshot.docs[0].data();
-                        console.log('Confirmation data:', confirmationData);
+                        console.log('Confirmation data found:', confirmationData);
                         if (confirmationData.clickerUserId === otherUserId) {
-                            return confirmationData.clickerDesc;
+                            return confirmationData.clickerDesc || 'Someone';
                         } else if (confirmationData.targetUserId === otherUserId) {
-                            return confirmationData.targetDesc;
+                            return confirmationData.targetDesc || 'Someone';
+                        } else {
+                            console.warn('User not found in clickerUserId or targetUserId:', confirmationData);
                         }
+                    } else {
+                        console.warn('No chat_confirmations found for chatId:', chatId);
                     }
+
+                    // Fallback to photos collection
                     const photoSnapshot = await db.collection('photos')
                         .where('userId', '==', otherUserId)
                         .orderBy('timestamp', 'desc')
                         .limit(1)
                         .get();
+                    
                     if (!photoSnapshot.empty) {
-                        return photoSnapshot.docs[0].data().desc || 'Someone';
+                        const photoData = photoSnapshot.docs[0].data();
+                        console.log('Photo data found:', photoData);
+                        return photoData.desc || 'Someone';
+                    } else {
+                        console.warn('No photos found for userId:', otherUserId);
                     }
+
                     return 'Someone';
                 } catch (error) {
                     console.error('Error fetching user description:', error);
-                    return 'Someone';
+                    if (error.code === 'permission-denied') {
+                        console.warn('Permission denied accessing chat_confirmations or photos for chatId:', chatId, 'otherUserId:', otherUserId);
+                        displayError('Unable to load some user descriptions due to permissions. Contact support if this persists.');
+                    } else if (error.code === 'failed-precondition') {
+                        console.warn('Query requires an index. Check Firestore console for details:', error);
+                        displayError('Chat list unavailable. Please try again or contact support.');
+                    }
+                    return 'Someone'; // Fallback to avoid breaking UI
                 }
             }
 
@@ -273,7 +294,10 @@
             }
 
             function displayError(message) {
-                chatList.innerHTML = `<p class="text-center text-red-500 p-4">${message}</p>`;
+                const errorDiv = document.createElement('p');
+                errorDiv.className = 'text-center text-red-500 p-4';
+                errorDiv.textContent = message;
+                chatList.appendChild(errorDiv);
             }
 
             navExplore.addEventListener('click', (e) => {
