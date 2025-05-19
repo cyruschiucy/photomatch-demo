@@ -233,8 +233,8 @@
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => {
                     controller.abort();
-                    console.error('n8n request timed out after 20 seconds');
-                }, 20000); // Increased to 20 seconds
+                    console.error('n8n request timed out after 60 seconds');
+                }, 60000); // Increased to 60 seconds
 
                 let n8nResponse;
                 try {
@@ -248,7 +248,7 @@
                     });
                 } catch (fetchError) {
                     if (fetchError.name === 'AbortError') {
-                        throw new Error('Request to n8n timed out after 20 seconds');
+                        throw new Error('Request to n8n timed out after 60 seconds');
                     }
                     console.error('n8n fetch error:', fetchError.message, fetchError.stack);
                     throw new Error(`Failed to connect to n8n: ${fetchError.message}`);
