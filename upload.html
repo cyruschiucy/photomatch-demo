@@ -86,14 +86,21 @@
             font-size: 1.25rem;
             margin-bottom: 0.2rem;
         }
+        .container {
+            max-height: calc(100vh - 4rem); /* Viewport height minus nav-bar height */
+            overflow-y: auto; /* Enable vertical scrolling */
+            padding: 1.5rem; /* Reduced padding for better space usage */
+            box-sizing: border-box;
+        }
         @media (min-width: 641px) {
             .nav-btn { font-size: 0.75rem; }
             .nav-btn span:first-child { font-size: 1.5rem; }
+            .container { max-height: calc(100vh - 5rem); } /* Adjust for larger nav-bar */
         }
     </style>
 </head>
 <body class="bg-gray-100 flex flex-col min-h-screen">
-    <div class="container mx-auto p-6 flex-1">
+    <div class="container mx-auto flex-1">
         <h1 class="text-2xl font-bold mb-6 text-center">Upload a Photo</h1>
         
         <!-- User Info -->
